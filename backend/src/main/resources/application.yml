@@ -5,8 +5,9 @@ spring:
   application:
     name: demo-backend
   datasource:
-    url: jdbc:postgresql://db:5432/db
-    username: myuser
-    password: secret
-    driver-class-name: org.postgresql.Driver
-
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
