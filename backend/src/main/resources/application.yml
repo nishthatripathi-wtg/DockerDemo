@@ -5,7 +5,7 @@ spring:
   application:
     name: demo-backend
   datasource:
-    url: jdbc:postgresql://db:5432/myuser
+    url: jdbc:postgresql://localhost:5432/myuser
     username: myuser
     password: mypassword
   jpa:
