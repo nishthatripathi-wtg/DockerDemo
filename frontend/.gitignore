@@ -1,0 +1,20 @@
+# Build output
+/dist
+/tmp
+/out-tsc
+/target
+
+# Node
+/node_modules
+npm-debug.log
+
+# Angular cache
+/.angular
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# System
+.DS_Store
