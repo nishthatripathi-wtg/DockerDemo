@@ -4,3 +4,8 @@ server:
 spring:
   application:
     name: demo-backend
+    datasource:
+      url: jdbc:postgresql://db:5432/db
+      username: myuser
+      password: secret
+      driver-class-name: org.postgresql.Driver
