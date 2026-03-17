@@ -6,7 +6,7 @@ services:
     image: gitea/gitea:latest
     ports:
       - "3000:3000"
-      - - "2221:22"        # SSH access for git push
+      - "2221:22"        # SSH access for git push
     volumes:
       - ./gitea_data:/data
     restart: unless-stopped
