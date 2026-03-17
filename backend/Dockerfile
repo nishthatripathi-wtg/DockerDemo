@@ -17,14 +17,14 @@ WORKDIR /app/Backend
 
 WORKDIR /app
 
-COPY ./backend .
+COPY . .
 
 RUN mvn clean package -DskipTests
 
 # ---- Stage 2: Runtime ----
 FROM azul/zulu-openjdk-alpine:17-jre
 
-WORKDIR /app
+WORKDIR /app/backend
 
 RUN addgroup -S spring && adduser -S spring -G spring
 
