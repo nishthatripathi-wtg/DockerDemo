@@ -6,6 +6,7 @@ WORKDIR /app
 COPY . .
 
 RUN npm install
+
 RUN npm install -g @angular/cli
 
 RUN ng build --output-path=dist
