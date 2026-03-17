@@ -15,18 +15,20 @@ WORKDIR /app/Backend
 # && cd source \
 # && git sparse-checkout set backend
 
-WORKDIR /app/backend
+WORKDIR /app
+
+COPY ./backend .
 
 RUN mvn clean package -DskipTests
 
 # ---- Stage 2: Runtime ----
 FROM azul/zulu-openjdk-alpine:17-jre
 
-WORKDIR /app/backe
+WORKDIR /app
 
 RUN addgroup -S spring && adduser -S spring -G spring
 
-COPY --from=build --chown=spring:spring /app/backend/target/*.jar app.jar
+COPY --from=build --chown=spring:spring /app/target/*.jar app.jar
 
 USER spring
 
