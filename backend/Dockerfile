@@ -1,7 +1,7 @@
 # ---- Stage 1: Build ----
 FROM maven:3.9.6-eclipse-temurin-17 AS build
 
-#WORKDIR /app/Backend
+# WORKDIR /app/Backend
 
 #RUN apt-get update && apt-get install -y  --no-install-recommends git \
 # && apt-get clean \
