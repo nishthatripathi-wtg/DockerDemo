@@ -5,7 +5,7 @@ services:
     image: gitea/gitea:latest
     ports:
       - "3000:3000"
-      - "2221:22"        # SSH access for git push
+      - "2221:22"
     volumes:
       - ./gitea_data:/data
     restart: unless-stopped
@@ -17,10 +17,8 @@ services:
     user: root
     ports:
       - "9090:8080"
-      - "50000:50000"
     volumes:
       - ./jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/bin/docker:/usr/bin/docker
-    environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
+      - /usr/libexec/docker/cli-plugins:/usr/lib/docker/cli-plugins
