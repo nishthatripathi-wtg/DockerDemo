@@ -3,19 +3,15 @@ version: '3'
 services:
   gitea:
     image: gitea/gitea:latest
-    container_name: gitea
     ports:
       - "3000:3000"
-      - "2221:22"
+      - "2221:22"        # SSH access for git push
     volumes:
       - ./gitea_data:/data
     restart: unless-stopped
 
   jenkins:
-    build:
-      context: .
-      dockerfile: jenkins.Dockerfile
-    container_name: jenkins
+    image: jenkins/jenkins:lts
     restart: always
     privileged: true
     user: root
@@ -25,5 +21,6 @@ services:
     volumes:
       - ./jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
