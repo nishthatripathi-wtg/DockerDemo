@@ -19,6 +19,7 @@ WORKDIR /app
 
 COPY . .
 
+
 RUN mvn clean package -DskipTests
 
 # ---- Stage 2: Runtime ----
