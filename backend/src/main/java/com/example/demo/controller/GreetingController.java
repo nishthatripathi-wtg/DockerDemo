@@ -20,13 +20,13 @@ public class GreetingController {
     @Autowired
     private DataSource dataSource;
 
-    @GetMapping("/api/greeting1")
+    @GetMapping("/api/greeting")
     public Map<String, String> greeting(@RequestParam(defaultValue = "World") String name) {
         System.out.println("Called by : "+name);
         return Map.of("message", "Hello, " + name + "!");
     }
 
-    @GetMapping("/db1")
+    @GetMapping("/db")
     public ResponseEntity<String> checkDb() {
         try (Connection c = dataSource.getConnection()) {
             String url = c.getMetaData().getURL();

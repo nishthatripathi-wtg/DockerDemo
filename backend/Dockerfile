@@ -7,7 +7,9 @@ RUN apt-get update && apt-get install -y  --no-install-recommends git \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
+ARG COMMIT_ID=1
 
+RUN echo "$COMMIT_ID"
 RUN git clone --depth=1 --filter=blob:none --sparse \
     https://github.com/nishthatripathi-wtg/DockerDemo.git source \
  && cd source \
