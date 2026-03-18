@@ -12,11 +12,17 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/myuser
       SPRING_DATASOURCE_USERNAME: myuser
       SPRING_DATASOURCE_PASSWORD: secret
+    deploy:
+      mode: replicated
+      replicas: 1
 
   frontend:
     image: 172.23.219.26:5000/docker-demo-web:latest
     ports:
       - "4200:80"
+    deploy:
+      mode: replicated
+      replicas: 1
 
   db:
     image: 'postgres'
