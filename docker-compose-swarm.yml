@@ -26,3 +26,6 @@ services:
       POSTGRES_PASSWORD: secret
     deploy:
       replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
