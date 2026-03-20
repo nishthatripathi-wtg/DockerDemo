@@ -14,7 +14,7 @@ import java.util.Map;
 
 @EnableAutoConfiguration
 @RestController
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(origins = {"http://172.24.191.230:4200","http://172.24.191.221:4200","http://172.24.187.57:4200"})
 public class GreetingController {
 
     @Autowired
