@@ -1,40 +1,28 @@
-version: '3'
+version: '3.8'
 
 services:
-
   backend:
-    image: dockerdemo
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: 172.24.191.230:5000/dockerdemo
     ports:
       - "8080:8080"
-    depends_on:
-      - db
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/myuser
       SPRING_DATASOURCE_USERNAME: myuser
       SPRING_DATASOURCE_PASSWORD: secret
     deploy:
-      mode: replicated
-      replicas: 2
+      replicas: 1
 
   frontend:
-    image: dockerdemoweb
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: 172.24.191.230:5000/dockerdemoweb
     ports:
       - "4200:80"
     deploy:
-      mode: replicated
-      replicas: 2
+      replicas: 1
 
   db:
-    image: 'postgres'
-    container_name: db
+    image: postgres
     environment:
-      - POSTGRES_USER=myuser
-      - POSTGRES_PASSWORD=secret
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: secret
     deploy:
-      mode: global
+      replicas: 1
