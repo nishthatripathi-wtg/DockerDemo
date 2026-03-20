@@ -8,3 +8,5 @@ target/
 
 # OS
 .DS_Store
+gitea_data/
+jenkins_home/

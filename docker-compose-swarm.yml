@@ -14,7 +14,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: secret
     deploy:
       mode: replicated
-      replicas: 1
+      replicas: 2
 
   frontend:
     image: 172.23.219.26:5000/docker-demo-web:latest
@@ -22,7 +22,7 @@ services:
       - "4200:80"
     deploy:
       mode: replicated
-      replicas: 1
+      replicas: 2
 
   db:
     image: 'postgres'
@@ -30,3 +30,5 @@ services:
     environment:
       - POSTGRES_USER=myuser
       - POSTGRES_PASSWORD=secret
+    deploy:
+      mode: global

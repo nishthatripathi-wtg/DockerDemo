@@ -3,7 +3,10 @@ version: '3'
 services:
 
   backend:
-    image: 172.23.219.26:5000/docker-demo:latest
+    image: dockerdemo
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
     depends_on:
@@ -14,7 +17,10 @@ services:
       SPRING_DATASOURCE_PASSWORD: secret
 
   frontend:
-    image: 172.23.219.26:5000/docker-demo-web:latest
+    image: dockerdemoweb
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "4200:80"
 
