@@ -10,14 +10,14 @@ services:
       SPRING_DATASOURCE_USERNAME: myuser
       SPRING_DATASOURCE_PASSWORD: secret
     deploy:
-      replicas: 1
+      replicas: 3
 
   frontend:
     image: 172.24.191.230:5000/dockerdemoweb
     ports:
       - "4200:80"
     deploy:
-      replicas: 1
+      replicas: 3
 
   db:
     image: postgres
