@@ -68,10 +68,13 @@ services:
 
         # Service hint
         - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+
   backend:
-    image: 172.24.191.230:5000/dockerdemo
+    image: 172.27.1.79:5000/dockerdemo
     ports:
       - "8080:8080"
+    networks:
+      - traefik_proxy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/myuser
       SPRING_DATASOURCE_USERNAME: myuser
@@ -80,9 +83,11 @@ services:
       replicas: 3
 
   frontend:
-    image: 172.24.191.230:5000/dockerdemoweb
+    image: 172.27.1.79:5000/dockerdemoweb
     ports:
       - "4200:80"
+    networks:
+      - traefik_proxy
     deploy:
       replicas: 3
       restart_policy:
@@ -95,13 +100,15 @@ services:
         - "traefik.enable=true"
         # Define the  router rule
         - "traefik.http.routers.frontend.rule=Host(`swarm.localhost`)"
-        - traefik.http.services.frontend.loadbalancer.server.port=8080
+        - traefik.http.services.frontend.loadbalancer.server.port=4200
 
   db:
     image: postgres
     environment:
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: secret
+    networks:
+      - traefik_proxy
     deploy:
       replicas: 1
       placement:
