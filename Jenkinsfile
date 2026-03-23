@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        REGISTRY = "172.24.191.230:5000"
+        REGISTRY = "172.27.1.79:5000"
     }
 
     stages {
