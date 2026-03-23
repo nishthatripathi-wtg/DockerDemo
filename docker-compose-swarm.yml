@@ -67,6 +67,7 @@ services:
         - "traefik.enable=true"
         - "traefik.http.routers.backend.rule=Host(`myapp.local`) && PathPrefix(`/api`)"
         - "traefik.http.routers.backend.entrypoints=web"
+        -  "traefik.http.routers.backend.priority=10"
         - "traefik.http.services.backend.loadbalancer.server.port=8080"
 
   db:
