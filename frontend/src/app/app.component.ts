@@ -66,7 +66,7 @@ export class AppComponent {
 
   getGreeting() {
     const param = this.name ? `?name=${this.name}` : '';
-    this.http.get<{ message: string }>(`/api/greeting${param}`)
+    this.http.get<{ message: string }>(`backend/api/greeting${param}`)
       .subscribe({
         next: (response) => this.greeting = response.message,
         error: (err) => this.greeting = 'Error connecting to backend'
