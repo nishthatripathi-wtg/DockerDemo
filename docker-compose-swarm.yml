@@ -1,6 +1,73 @@
 version: '3.8'
 
 services:
+  traefik:
+    image: traefik:v3.6
+
+    networks:
+      - traefik_proxy
+
+    ports:
+      - target: 80 # Container port (Traefik web entry point)
+        published: 80 # Host port exposed on the nodes
+        protocol: tcp
+
+    volumes:
+      # Mount the Docker socket for the Swarm provider
+      # This MUST be run from a manager node to access the Swarm API via the socket.
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # Swarm API socket
+
+    command:
+      # HTTP EntryPoint
+      - "--entrypoints.web.address=:80"
+
+      # Enable the Docker Swarm provider (instead of Docker provider)
+      - "--providers.swarm.endpoint=unix:///var/run/docker.sock"
+
+      # Watch for Swarm service changes (requires socket access)
+      - "--providers.swarm.watch=true"
+
+      # Recommended: Don't expose services by default; require explicit labels
+      - "--providers.swarm.exposedbydefault=false"
+
+      # Specify the default network for Traefik to connect to services
+      - "--providers.swarm.network=traefik_traefik_proxy"
+
+      # API & Dashboard
+      - "--api.dashboard=true" # Enable the dashboard
+
+      # Observability
+      - "--log.level=INFO" # Set the Log Level e.g INFO, DEBUG
+      - "--accesslog=true" # Enable Access Logs
+      - "--metrics.prometheus=true"  # Enable Prometheus
+
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+
+        # Placement constraints restrict where Traefik tasks can run.
+        # Running on manager nodes is common for accessing the Swarm API via the socket.
+        constraints:
+          - node.role == manager
+
+      # Traefik Dynamic configuration via labels
+      # In Swarm, labels on the service definition configure Traefik routing for that service.
+      labels:
+        - "traefik.enable=true"
+
+        # Dashboard router
+        - "traefik.http.routers.dashboard.rule=Host(`dashboard.swarm.localhost`)"
+        - "traefik.http.routers.dashboard.entrypoints=websecure"
+        - "traefik.http.routers.dashboard.service=api@internal"
+        - "traefik.http.routers.dashboard.tls=true"
+
+        # Basic‑auth middleware
+        - "traefik.http.middlewares.dashboard-auth.basicauth.users=<PASTE_HASH_HERE>"
+        - "traefik.http.routers.dashboard.middlewares=dashboard-auth@swarm"
+
+        # Service hint
+        - "traefik.http.services.traefik.loadbalancer.server.port=8080"
   backend:
     image: 172.24.191.230:5000/dockerdemo
     ports:
@@ -23,6 +90,12 @@ services:
         delay: 5s
         max_attempts: 3
         window: 120s
+      labels:
+        # Enable Service discovery for Traefik
+        - "traefik.enable=true"
+        # Define the  router rule
+        - "traefik.http.routers.frontend.rule=Host(`swarm.localhost`)"
+        - traefik.http.services.frontend.loadbalancer.server.port=8080
 
   db:
     image: postgres
@@ -34,3 +107,8 @@ services:
       placement:
         constraints:
           - node.role == manager
+
+networks:
+  traefik_proxy:
+    driver: overlay
+    attachable: true
