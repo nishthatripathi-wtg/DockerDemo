@@ -63,6 +63,7 @@ export class AppComponent {
 
   constructor(private http: HttpClient) {}
 
+
   getGreeting() {
     const param = this.name ? `?name=${this.name}` : '';
     this.http.get<{ message: string }>(`/api/greeting${param}`)
