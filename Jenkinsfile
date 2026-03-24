@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        REGISTRY = "172.27.1.79:5000"
+        REGISTRY = "registry.myapp.com"
     }
 
     stages {
@@ -31,7 +31,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo 'Deploying to Swarm...'
-                sh "docker stack deploy -c docker-compose-swarm.yml myapp --with-registry-auth"
+                sh "docker stack deploy -c docker-compose-app.yml myapp --with-registry-auth"
             }
         }
     }
