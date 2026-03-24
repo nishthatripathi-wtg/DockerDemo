@@ -3,7 +3,6 @@ version: '3'
 services:
   jenkins:
     image: registry.myapp.com/jenkins-docker:latest
-
     user: root
     networks:
       - traefik_proxy
