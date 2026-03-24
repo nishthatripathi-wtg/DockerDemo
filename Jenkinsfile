@@ -31,7 +31,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo 'Deploying to Swarm...'
-                sh "docker stack deploy -c docker-compose-app.yml myapp --with-registry-auth"
+                sh "docker stack deploy -c docker/docker-compose-app.yml myapp --with-registry-auth"
             }
         }
     }
