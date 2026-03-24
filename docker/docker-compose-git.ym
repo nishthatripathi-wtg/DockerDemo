@@ -1,0 +1,21 @@
+version: '3'
+services:
+  gitea:
+    image: gitea/gitea:latest
+    ports:
+      - "2221:22"
+    networks:
+      - traefik_proxy
+    volumes:
+      - ./gitea_data:/data
+    restart: unless-stopped
+    deploy:
+      replicas: 3
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.backend.rule=Host(`git.myapp.com`)"
+        - "traefik.http.routers.backend.entrypoints=web"
+        - "traefik.http.services.backend.loadbalancer.server.port=3000"
+networks:
+  traefik_proxy:
+    external: true

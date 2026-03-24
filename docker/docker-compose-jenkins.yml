@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  jenkins:
+    image: registry.myapp.com/jenkins-docker:latest
+
+    user: root
+    networks:
+      - traefik_proxy
+    volumes:
+      - ../jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.jenkins.rule=Host(`jenkins.myapp.com`)"
+        - "traefik.http.routers.jenkins.entrypoints=web"
+        - "traefik.http.services.jenkins.loadbalancer.server.port=8080"
+
+networks:
+  traefik_proxy:
+    external: true

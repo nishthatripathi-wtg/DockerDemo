@@ -1,0 +1,29 @@
+version: '3'
+services:
+  gitea:
+    image: gitea/gitea:latest
+    networks:
+      - traefik_proxy
+    volumes:
+      - ../gitea_data:/data
+    ports:
+      - "2222:22"
+    environment:
+      - GITEA__server__DOMAIN=git.myapp.com
+      - GITEA__server__ROOT_URL=https://git.myapp.com
+      - GITEA__server__SSH_DOMAIN=git.myapp.com
+      - GITEA__server__SSH_PORT=2222
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.gitea-http.rule=Host(`git.myapp.com`)"
+        - "traefik.http.routers.gitea-http.entrypoints=web"
+        - "traefik.http.services.gitea.loadbalancer.server.port=3000"
+
+networks:
+  traefik_proxy:
+    external: true
