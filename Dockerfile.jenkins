@@ -1,4 +1,8 @@
 FROM jenkins/jenkins:lts
 USER root
 RUN apt-get update && apt-get install -y docker.io
+
+RUN mkdir -p /var/jenkins_home/workspace && \
+    chown -R jenkins:jenkins /var/jenkins_home
+
 USER jenkins

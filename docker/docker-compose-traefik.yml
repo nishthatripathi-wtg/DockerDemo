@@ -9,10 +9,14 @@ services:
       - target: 80
         published: 80
         protocol: tcp
+      - target: 8082
+        published: 8082
+        protocol: tcp
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     command:
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.metrics.address=:8082"
       - "--providers.swarm.endpoint=unix:///var/run/docker.sock"
       - "--providers.swarm.watch=true"
       - "--providers.swarm.exposedbydefault=false"
@@ -21,6 +25,12 @@ services:
       - "--api.insecure=true"
       - "--log.level=INFO"
       - "--accesslog=true"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.entryPoint=metrics"
+      - "--metrics.prometheus.manualRouting=true"
+      - "--metrics.prometheus.addServicesLabels=true"
+      - "--metrics.prometheus.addRoutersLabels=true"
     deploy:
       mode: replicated
       replicas: 1
@@ -29,11 +39,13 @@ services:
           - node.role == manager
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.dashboard.rule=Host(`traefik.myapp.com`)"
+        - "traefik.http.routers.dashboard.rule=Host(`traefik.myapp.com`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
         - "traefik.http.routers.dashboard.entrypoints=web"
         - "traefik.http.routers.dashboard.service=api@internal"
+        - "traefik.http.routers.metrics.rule=Path(`/metrics`)"
+        - "traefik.http.routers.metrics.entrypoints=metrics"
+        - "traefik.http.routers.metrics.service=prometheus@internal"
         - "traefik.http.services.traefik.loadbalancer.server.port=8080"
-
 networks:
   traefik_proxy:
     external: true
