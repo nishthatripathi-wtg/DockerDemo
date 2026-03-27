@@ -122,6 +122,8 @@ def main():
                 current = get_replicas(service_name)
                 desired = math.ceil(rps / target_rps) if rps > 0 else 3
                 desired = max(desired, min_replicas)
+                log(f"{service_name}: {rps:.2f} req/s | currentaftermin={current} desiredaftermin={desired}")
+
                 desired = min(desired, max_replicas)
                 log(f"{service_name}: {rps:.2f} req/s | current={current} desired={desired}")
 
