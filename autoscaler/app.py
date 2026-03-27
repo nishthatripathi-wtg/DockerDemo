@@ -92,7 +92,6 @@ def main():
                 metric_service = labels.get("autoscaler.metric_service")
                 target_rps     = float(labels.get("autoscaler.target_rps_per_replica", "30"))
                 max_replicas   = int(labels.get("autoscaler.max_replicas", "10"))
-                max_step_up    = int(labels.get("autoscaler.max_step_up", "2"))
 
                 if not metric_service:
                     log(f" {service_name}: missing autoscaler.metric_service label")
@@ -122,8 +121,6 @@ def main():
                 current = get_replicas(service_name)
                 desired = math.ceil(rps / target_rps) if rps > 0 else 3
                 desired = min(desired, max_replicas)
-                desired = min(desired, current + max_step_up)
-
                 log(f"{service_name}: {rps:.2f} req/s | current={current} desired={desired}")
 
 

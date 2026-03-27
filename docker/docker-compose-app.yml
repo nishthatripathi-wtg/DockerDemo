@@ -22,7 +22,6 @@ services:
         - "autoscaler.enabled=true"
         - "autoscaler.target_rps_per_replica=5"
         - "autoscaler.max_replicas=10"
-        - "autoscaler.max_step_up=2"
         - "autoscaler.metric_service=frontend@swarm"
 
   backend:
@@ -44,7 +43,6 @@ services:
         - "autoscaler.enabled=true"
         - "autoscaler.target_rps_per_replica=5"
         - "autoscaler.max_replicas=10"
-        - "autoscaler.max_step_up=2"
         - "autoscaler.metric_service=backend@swarm"
 
 
