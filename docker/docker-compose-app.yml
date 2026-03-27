@@ -62,7 +62,7 @@ services:
           - node.role == manager
 
   autoscaler:
-    image: dockerdemo-autoscaler:latest
+    image: registry.myapp.com/autoscaler
     networks:
       - traefik_proxy
     volumes:
