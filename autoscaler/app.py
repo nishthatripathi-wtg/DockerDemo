@@ -55,7 +55,7 @@ def scale_service(service_name, desired):
 def find_autoscaler_services():
     enabled = []
     for service in docker_client.services.list():
-        labels =  get_service_labels(service)
+        labels = service.attrs["Spec"].get("Labels", {});
         if labels.get("autoscaler.enabled", "false") == "true":
             enabled.append(service.attrs["Spec"]["Name"])
     return enabled
