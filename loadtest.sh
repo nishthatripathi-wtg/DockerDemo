@@ -2,7 +2,7 @@
 
 URL="http://127.0.0.1/api/greeting"
 HOST="myapp.local"
-NUM_REQUESTS=30
+NUM_REQUESTS=50
 DURATION=60
 
 echo "Starting load test"
