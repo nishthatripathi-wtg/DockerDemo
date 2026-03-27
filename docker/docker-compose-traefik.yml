@@ -26,11 +26,8 @@ services:
       - "--log.level=INFO"
       - "--accesslog=true"
       - "--metrics.prometheus=true"
-      - "--metrics.prometheus.addEntryPointsLabels=true"
-      - "--metrics.prometheus.entryPoint=metrics"
       - "--metrics.prometheus.manualRouting=true"
       - "--metrics.prometheus.addServicesLabels=true"
-      - "--metrics.prometheus.addRoutersLabels=true"
     deploy:
       mode: replicated
       replicas: 1
