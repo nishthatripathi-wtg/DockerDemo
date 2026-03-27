@@ -120,7 +120,7 @@ def main():
 
 
                 current = get_replicas(service_name)
-                desired = math.ceil(rps / target_rps) if rps > 0 else 1
+                desired = math.ceil(rps / target_rps) if rps > 0 else 3
                 desired = min(desired, max_replicas)
                 desired = min(desired, current + max_step_up)
 
