@@ -113,6 +113,7 @@ def main():
 
                 elapsed = current_time - last_time[metric_service]
                 delta   = curr_request_count - last_count[metric_service]
+                log(f"Number of requests since last poll {delta}")
                 rps     = max(0.0, delta / elapsed if elapsed > 0 else 0.0)
 
                 last_count[metric_service] = curr_request_count
@@ -122,14 +123,12 @@ def main():
                 current = get_replicas(service_name)
                 desired = math.ceil(rps / target_rps) if rps > 0 else 3
                 desired = max(desired, min_replicas)
-                log(f"{service_name}: {rps:.2f} req/s | currentaftermin={current} desiredaftermin={desired}")
-
                 desired = min(desired, max_replicas)
                 log(f"{service_name}: {rps:.2f} req/s | current={current} desired={desired}")
 
 
                 if desired == current:
-                    log(f"↔{service_name}: no scaling needed")
+                    log(f"{service_name}: no scaling needed")
                     continue
 
                 if desired > current:
