@@ -1,7 +1,7 @@
 #!/bin/bash
 # infra-up.sh — Bring up the full infrastructure stack in order.
 # Saves current VM IP to /etc/hosts, re-joins swarm if the advertise address
-# has changed, then deploys: traefik → registry → gitea → jenkins.
+# has changed, then deploys: traefik → gitea → registry → jenkins.
 
 set -e
 
@@ -29,6 +29,14 @@ for domain in "${DOMAINS[@]}"; do
   echo "$VM_IP $domain" | sudo tee -a /etc/hosts > /dev/null
   echo "      $VM_IP → $domain"
 done
+
+# Keep host mappings persistent on reboot for cloud-init managed hosts files.
+if [ -f /etc/cloud/templates/hosts.debian.tmpl ]; then
+  for domain in "${DOMAINS[@]}"; do
+    sudo sed -i "/ $domain$/d" /etc/cloud/templates/hosts.debian.tmpl
+    echo "$VM_IP $domain" | sudo tee -a /etc/cloud/templates/hosts.debian.tmpl > /dev/null
+  done
+fi
 
 # ── 3. Fix Swarm if advertise address has changed ─────────────────────────────
 echo "[3/6] Checking Swarm advertise address..."
@@ -73,12 +81,32 @@ deploy() {
 
 echo "[5/6] Deploying infrastructure stacks..."
 deploy traefik  "$DOCKER_DIR/docker-compose-traefik.yml"
-deploy registry "$DOCKER_DIR/docker-compose-registry.yml"
 deploy git      "$DOCKER_DIR/docker-compose-git.yml"
+deploy registry "$DOCKER_DIR/docker-compose-registry.yml"
 deploy jenkins  "$DOCKER_DIR/docker-compose-jenkins.yml"
 
-# ── 6. Push commit to trigger Jenkins pipeline ───────────────────────────────
-echo "[6/6] Pushing trigger commit to Gitea..."
+# ── 6. Validate registry endpoint before triggering pipeline ──────────────────
+echo "[6/7] Validating registry endpoint..."
+RESOLVED_IP=$(getent hosts registry.myapp.com | awk 'NR==1{print $1}')
+if [ -z "$RESOLVED_IP" ]; then
+  echo "❌  registry.myapp.com does not resolve on this host."
+  exit 1
+fi
+echo "      registry.myapp.com resolves to: $RESOLVED_IP"
+if [ "$RESOLVED_IP" != "$VM_IP" ]; then
+  echo "❌  registry.myapp.com points to $RESOLVED_IP but VM IP is $VM_IP."
+  echo "    Update hosts mapping and re-run infra-up.sh."
+  exit 1
+fi
+REG_CODE=$(curl -sS -m 8 -o /dev/null -w '%{http_code}' http://registry.myapp.com/v2/ || true)
+if [ "$REG_CODE" != "200" ]; then
+  echo "❌  Registry health check failed: http://registry.myapp.com/v2/ returned '$REG_CODE'."
+  exit 1
+fi
+echo "      Registry is reachable (HTTP 200)."
+
+# ── 7. Push commit to trigger Jenkins pipeline ───────────────────────────────
+echo "[7/7] Pushing trigger commit to Gitea..."
 cd "$REPO_DIR"
 git add -A
 if git diff --cached --quiet; then

@@ -14,7 +14,7 @@ services:
           - node.role == manager
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.regsitry.rule=Host(`registry.myapp.com`)"
+        - "traefik.http.routers.registry.rule=Host(`registry.myapp.com`)"
         - "traefik.http.routers.registry.entrypoints=web"
         - "traefik.http.services.registry.loadbalancer.server.port=5000"
 
