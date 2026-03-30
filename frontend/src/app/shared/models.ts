@@ -28,6 +28,7 @@ export interface UserMessage {
   translatedLanguage?: string;
   parentMessageId?: number | null;
   createdAt: string;
+  direction?: 'inbound' | 'outbound';
 }
 
 export interface MessageHistoryItem {
@@ -37,4 +38,12 @@ export interface MessageHistoryItem {
   at: string;
   content: string;
   direction: 'inbound' | 'outbound';
+}
+
+export interface ConversationSummary {
+  username: string;
+  latestMessageId: number;
+  latestAt: string;
+  latestContent: string;
+  latestDirection: 'inbound' | 'outbound';
 }

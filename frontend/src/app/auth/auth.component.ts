@@ -85,7 +85,7 @@ export class AuthComponent {
       next: (res) => {
         this.authState.setCurrentUser(res.username);
         this.loading = false;
-        this.router.navigate(['/app']);
+        this.router.navigate(['/app/messages']);
       },
       error: () => {
         this.error = 'Registration failed';
@@ -109,7 +109,7 @@ export class AuthComponent {
       next: (res) => {
         this.authState.setCurrentUser(res.username);
         this.loading = false;
-        this.router.navigate(['/app']);
+        this.router.navigate(['/app/messages']);
       },
       error: () => {
         this.error = 'Login failed';

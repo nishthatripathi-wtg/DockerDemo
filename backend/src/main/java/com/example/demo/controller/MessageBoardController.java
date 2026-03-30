@@ -36,8 +36,12 @@ public class MessageBoardController {
     @PostMapping("/translate")
     public Map<String, Object> translate(
             @RequestParam Long messageId,
-            @RequestParam String targetLanguage) {
-        return messageBoardService.translate(messageId, targetLanguage);
+            @RequestParam String targetLanguage,
+            @RequestParam(required = false) String username) {
+        if (username == null || username.trim().isEmpty()) {
+            return messageBoardService.translate(messageId, targetLanguage);
+        }
+        return messageBoardService.translateForUser(messageId, username, targetLanguage);
     }
 
     @GetMapping("/inbox")
@@ -48,5 +52,18 @@ public class MessageBoardController {
     @GetMapping("/history")
     public List<Map<String, Object>> history(@RequestParam String username) {
         return messageBoardService.history(username);
+    }
+
+    @GetMapping("/conversations")
+    public List<Map<String, Object>> conversations(@RequestParam String username) {
+        return messageBoardService.conversations(username);
+    }
+
+    @GetMapping("/thread")
+    public List<Map<String, Object>> thread(
+            @RequestParam String username,
+            @RequestParam String counterpart
+    ) {
+        return messageBoardService.thread(username, counterpart);
     }
 }

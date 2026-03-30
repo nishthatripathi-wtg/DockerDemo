@@ -52,7 +52,10 @@ public class MessageBoardService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "message not found"));
 
         String senderName = normalizeUsername(sender, "sender");
-        String replyTo = parent.getSenderUsername();
+        if (!senderName.equals(parent.getSenderUsername()) && !senderName.equals(parent.getRecipientUsername())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "sender is not part of selected message");
+        }
+        String replyTo = senderName.equals(parent.getSenderUsername()) ? parent.getRecipientUsername() : parent.getSenderUsername();
         String text = normalize(content, "content");
         String lang = normalizeLanguage(language);
 
@@ -77,11 +80,60 @@ public class MessageBoardService {
         return toMap(messageRepository.save(message));
     }
 
+    public Map<String, Object> translateForUser(Long messageId, String username, String targetLanguage) {
+        String user = normalizeUsername(username, "username");
+        UserMessage message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "message not found"));
+        if (!user.equals(message.getRecipientUsername())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "can only translate messages sent by others");
+        }
+        return translate(messageId, targetLanguage);
+    }
+
     public List<Map<String, Object>> inbox(String username) {
         String user = normalizeUsername(username, "username");
         List<Map<String, Object>> items = new ArrayList<>();
         for (UserMessage m : messageRepository.findByRecipientUsernameOrderByCreatedAtDesc(user)) {
             items.add(toMap(m));
+        }
+        return items;
+    }
+
+    public List<Map<String, Object>> conversations(String username) {
+        String user = normalizeUsername(username, "username");
+        Map<String, UserMessage> latestByCounterpart = new HashMap<>();
+        for (UserMessage m : messageRepository.findByRecipientUsernameOrSenderUsernameOrderByCreatedAtDesc(user, user)) {
+            String counterpart = counterpart(user, m);
+            if (!latestByCounterpart.containsKey(counterpart)) {
+                latestByCounterpart.put(counterpart, m);
+            }
+        }
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (Map.Entry<String, UserMessage> e : latestByCounterpart.entrySet()) {
+            UserMessage m = e.getValue();
+            Map<String, Object> row = new HashMap<>();
+            row.put("username", e.getKey());
+            row.put("latestMessageId", m.getId());
+            row.put("latestAt", m.getCreatedAt().toString());
+            row.put("latestContent", m.getTranslatedContent() != null ? m.getTranslatedContent() : m.getContent());
+            row.put("latestDirection", user.equals(m.getRecipientUsername()) ? "inbound" : "outbound");
+            items.add(row);
+        }
+        items.sort((a, b) -> String.valueOf(b.get("latestAt")).compareTo(String.valueOf(a.get("latestAt"))));
+        return items;
+    }
+
+    public List<Map<String, Object>> thread(String username, String counterpartUsername) {
+        String user = normalizeUsername(username, "username");
+        String counterpart = normalizeUsername(counterpartUsername, "counterpart");
+        if (user.equals(counterpart)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "counterpart must be different");
+        }
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (UserMessage m : messageRepository.findConversation(user, counterpart)) {
+            Map<String, Object> row = toMap(m);
+            row.put("direction", user.equals(m.getRecipientUsername()) ? "inbound" : "outbound");
+            items.add(row);
         }
         return items;
     }
@@ -105,6 +157,10 @@ public class MessageBoardService {
     private String fakeTranslate(String text, String targetLanguage) {
         String languageName = LANGUAGE_NAMES.getOrDefault(targetLanguage, targetLanguage);
         return "[" + languageName + "] " + text;
+    }
+
+    private String counterpart(String user, UserMessage message) {
+        return user.equals(message.getSenderUsername()) ? message.getRecipientUsername() : message.getSenderUsername();
     }
 
     private String normalize(String value, String field) {

@@ -7,12 +7,15 @@ import { RouterModule, Routes } from '@angular/router';
 import { AppComponent } from './app.component';
 import { AuthComponent } from './auth/auth.component';
 import { DashboardComponent } from './dashboard/dashboard.component';
+import { MessagesComponent } from './messages/messages.component';
 import { AuthGuard } from './shared/auth.guard';
 
 const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'auth' },
   { path: 'auth', component: AuthComponent },
-  { path: 'app', component: DashboardComponent, canActivate: [AuthGuard] },
+  { path: 'app', pathMatch: 'full', redirectTo: 'app/messages' },
+  { path: 'app/messages', component: MessagesComponent, canActivate: [AuthGuard] },
+  { path: 'app/profile', component: DashboardComponent, canActivate: [AuthGuard] },
   { path: '**', redirectTo: 'auth' }
 ];
 
@@ -20,7 +23,8 @@ const routes: Routes = [
   declarations: [
     AppComponent,
     AuthComponent,
-    DashboardComponent
+    DashboardComponent,
+    MessagesComponent
   ],
   imports: [
     BrowserModule,
