@@ -4,6 +4,7 @@ import com.example.demo.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -32,5 +33,13 @@ public class AuthController {
             @RequestParam String password
     ) {
         return authService.login(username, password);
+    }
+
+    @GetMapping("/users/search")
+    public List<String> searchUsers(
+            @RequestParam String query,
+            @RequestParam(required = false) String exclude
+    ) {
+        return authService.searchUsers(query, exclude);
     }
 }

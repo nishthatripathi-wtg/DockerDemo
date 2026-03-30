@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.model.UserAccount;
 import com.example.demo.repository.UserAccountRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -10,7 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -84,6 +87,22 @@ public class AuthService {
         response.put("message", "logged_in");
         response.put("profile", userProfileService.getOrCreate(normalizedUsername));
         return response;
+    }
+
+    public List<String> searchUsers(String query, String excludeUsername) {
+        String q = query == null ? "" : query.trim();
+        if (q.isEmpty()) {
+            return new ArrayList<>();
+        }
+        String exclude = excludeUsername == null ? "" : excludeUsername.trim().toLowerCase();
+        List<String> usernames = new ArrayList<>();
+        userAccountRepository.findByUsernameContainingIgnoreCaseOrderByUsernameAsc(q, PageRequest.of(0, 10))
+                .forEach(account -> {
+                    if (!account.getUsername().equals(exclude)) {
+                        usernames.add(account.getUsername());
+                    }
+                });
+        return usernames;
     }
 
     private String normalize(String value, String field) {

@@ -42,7 +42,12 @@ import { Language, MessageHistoryItem, UserMessage, UserProfile } from '../share
         <div class="card send-card">
           <h2>✉️ Send Greeting Message</h2>
           <div class="input-row">
-            <input [(ngModel)]="recipient" placeholder="recipient username" />
+            <div class="search-wrap">
+              <input [(ngModel)]="recipientQuery" (input)="searchRecipients()" placeholder="Search recipient username" />
+              <div class="search-results" *ngIf="recipientResults.length > 0">
+                <button class="result-item" *ngFor="let user of recipientResults" (click)="selectRecipient(user)">{{ user }}</button>
+              </div>
+            </div>
             <select [(ngModel)]="selectedLanguage">
               <option *ngFor="let lang of languages" [value]="lang.code">{{ lang.name }}</option>
             </select>
@@ -60,15 +65,23 @@ import { Language, MessageHistoryItem, UserMessage, UserProfile } from '../share
           <div class="empty" *ngIf="inbox.length===0">No messages yet.</div>
           <ul class="message-list" *ngIf="inbox.length>0">
             <li *ngFor="let m of inbox">
-              <div class="line"><strong>From:</strong> {{ m.sender }} · <strong>At:</strong> {{ formatTime(m.createdAt) }}</div>
-              <div class="line">{{ m.translatedContent || m.content }}</div>
-              <div class="actions">
-                <select [(ngModel)]="translateTarget[m.id]">
-                  <option *ngFor="let lang of languages" [value]="lang.code">{{ lang.name }}</option>
-                </select>
-                <button (click)="translateMessage(m.id)">Translate</button>
-                <input [(ngModel)]="replyText[m.id]" placeholder="Reply..." />
-                <button (click)="replyToMessage(m.id)">Reply</button>
+              <div class="message-box">
+                <div class="message-main">
+                  <div class="line"><strong>From:</strong> {{ m.sender }} · <strong>At:</strong> {{ formatTime(m.createdAt) }}</div>
+                  <div class="line">{{ m.translatedContent || m.content }}</div>
+                </div>
+                <div class="message-actions">
+                  <div class="actions">
+                    <select [(ngModel)]="translateTarget[m.id]">
+                      <option *ngFor="let lang of languages" [value]="lang.code">{{ lang.name }}</option>
+                    </select>
+                    <button (click)="translateMessage(m.id)">Translate</button>
+                  </div>
+                  <div class="actions">
+                    <input [(ngModel)]="replyText[m.id]" placeholder="Reply..." />
+                    <button (click)="replyToMessage(m.id)">Reply</button>
+                  </div>
+                </div>
               </div>
             </li>
           </ul>
@@ -114,6 +127,16 @@ import { Language, MessageHistoryItem, UserMessage, UserProfile } from '../share
     .light-theme .message-list li { background: rgba(15,23,42,.06); }
     .line { margin-bottom:6px; }
     .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .message-box { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+    .message-main { flex:1; min-width:240px; }
+    .message-actions { display:flex; flex-direction:column; gap:8px; min-width:260px; }
+    .search-wrap { position: relative; flex: 1; min-width: 220px; }
+    .search-wrap input { width: 100%; }
+    .search-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; background: #1f2937; max-height: 180px; overflow-y: auto; }
+    .light-theme .search-results { background: #ffffff; border-color: rgba(15,23,42,.25); }
+    .result-item { width: 100%; text-align: left; border: none; border-bottom: 1px solid rgba(255,255,255,.12); background: transparent; color: inherit; padding: 8px 10px; border-radius: 0; }
+    .result-item:last-child { border-bottom: none; }
+    .result-item:hover { background: rgba(99,102,241,.22); }
     .tag { padding:2px 8px; border-radius:99px; font-size:11px; margin-right:8px; }
     .inbound { background:#dcfce7; color:#166534; }
     .outbound { background:#dbeafe; color:#1e40af; }
@@ -139,6 +162,8 @@ export class DashboardComponent implements OnInit {
   activeTheme: 'dark' | 'light' = 'dark';
 
   recipient = '';
+  recipientQuery = '';
+  recipientResults: string[] = [];
   messageText = '';
   selectedLanguage = 'en';
   inbox: UserMessage[] = [];
@@ -224,6 +249,9 @@ export class DashboardComponent implements OnInit {
     this.http.post<UserMessage>(`/api/messages/send?${query}`, {}).subscribe({
       next: () => {
         this.messageText = '';
+        this.recipient = '';
+        this.recipientQuery = '';
+        this.recipientResults = [];
         this.success = 'Message sent';
         this.loadHistory();
       },
@@ -287,5 +315,24 @@ export class DashboardComponent implements OnInit {
   formatTime(ts: string): string {
     const d = new Date(ts);
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+
+  searchRecipients(): void {
+    const q = this.recipientQuery.trim();
+    if (q.length < 1) {
+      this.recipientResults = [];
+      return;
+    }
+    const query = `query=${encodeURIComponent(q)}&exclude=${encodeURIComponent(this.currentUser)}`;
+    this.http.get<string[]>(`/api/auth/users/search?${query}`).subscribe({
+      next: (users) => this.recipientResults = users,
+      error: () => this.recipientResults = []
+    });
+  }
+
+  selectRecipient(username: string): void {
+    this.recipient = username;
+    this.recipientQuery = username;
+    this.recipientResults = [];
   }
 }
