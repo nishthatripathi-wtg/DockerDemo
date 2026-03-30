@@ -24,34 +24,19 @@ interface Language {
   name: string;
 }
 
-interface Team {
-  id: number;
-  name: string;
-  createdAt: string;
-}
-
-interface Board {
-  id: number;
-  teamId: number;
-  title: string;
-  description: string;
-  owner: string;
-  createdAt: string;
-}
-
-interface BoardComment {
-  id: number;
-  boardId: number;
-  author: string;
-  content: string;
-  mentions: string[];
-  createdAt: string;
+interface UserProfile {
+  username: string;
+  displayName: string;
+  preferredLanguage: string;
+  timezone: string;
+  theme: 'dark' | 'light';
+  updatedAt: string;
 }
 
 @Component({
   selector: 'app-root',
   template: `
-    <div class="page">
+    <div class="page" [class.light-theme]="activeTheme==='light'">
       <header>
         <span class="header-icon">{{ timeIcon }}</span>
         <h1>Greeting Service</h1>
@@ -59,6 +44,34 @@ interface BoardComment {
       </header>
 
       <main>
+        <div class="card personalization-card">
+          <h2>👤 Personalization</h2>
+          <div class="input-row">
+            <input [(ngModel)]="profile.username" placeholder="username" />
+            <button (click)="loadProfile()">Load Profile</button>
+          </div>
+
+          <div class="input-row">
+            <input [(ngModel)]="profile.displayName" placeholder="display name" />
+            <select [(ngModel)]="profile.preferredLanguage">
+              <option *ngFor="let lang of languages" [value]="lang.code">{{ lang.name }}</option>
+            </select>
+            <select [(ngModel)]="profile.timezone">
+              <option *ngFor="let tz of timezones" [value]="tz">{{ tz }}</option>
+            </select>
+            <select [(ngModel)]="profile.theme">
+              <option value="dark">dark</option>
+              <option value="light">light</option>
+            </select>
+            <button (click)="saveProfile()">Save</button>
+          </div>
+
+          <div class="input-row">
+            <button (click)="getPersonalizedGreeting()">Use My Preferences</button>
+          </div>
+          <div class="small" *ngIf="profile.updatedAt">Last updated: {{ formatTime(profile.updatedAt) }}</div>
+        </div>
+
         <div class="card greet-card">
           <div class="input-row">
             <input type="text" [(ngModel)]="name" placeholder="Enter your name" (keyup.enter)="getGreeting()" />
@@ -67,7 +80,10 @@ interface BoardComment {
             </select>
             <button (click)="getGreeting()" [disabled]="loading">{{ loading ? '...' : 'Say Hello' }}</button>
           </div>
-          <div class="greeting-display" *ngIf="greeting"><span class="greeting-text">{{ greeting }}</span></div>
+
+          <div class="greeting-display" *ngIf="greeting">
+            <span class="greeting-text">{{ greeting }}</span>
+          </div>
           <div class="error" *ngIf="error">{{ error }}</div>
         </div>
 
@@ -100,105 +116,56 @@ interface BoardComment {
             </li>
           </ul>
         </div>
-
-        <div class="card collaboration-card">
-          <h2>🤝 Collaboration</h2>
-
-          <div class="section">
-            <h3>Teams</h3>
-            <div class="input-row">
-              <input type="text" [(ngModel)]="newTeamName" placeholder="Create team (e.g. Platform)" (keyup.enter)="createTeam()" />
-              <button (click)="createTeam()">Add Team</button>
-            </div>
-            <div class="chip-row" *ngIf="teams.length > 0">
-              <button class="chip" *ngFor="let t of teams" [class.active-chip]="selectedTeamId===t.id" (click)="selectTeam(t.id)">{{ t.name }}</button>
-            </div>
-            <div class="empty" *ngIf="teams.length===0">No teams yet.</div>
-          </div>
-
-          <div class="section" *ngIf="selectedTeamId">
-            <h3>Shared Boards</h3>
-            <div class="input-row">
-              <input type="text" [(ngModel)]="newBoardTitle" placeholder="Board title" />
-              <input type="text" [(ngModel)]="newBoardOwner" placeholder="Owner" />
-              <button (click)="createBoard()">Create Board</button>
-            </div>
-            <textarea [(ngModel)]="newBoardDescription" placeholder="Board description" rows="2"></textarea>
-
-            <div class="board-list" *ngIf="boards.length > 0">
-              <div class="board-item" *ngFor="let b of boards" [class.active-board]="selectedBoardId===b.id" (click)="selectBoard(b.id)">
-                <div><strong>{{ b.title }}</strong> · {{ b.owner }}</div>
-                <small>{{ b.description }}</small>
-              </div>
-            </div>
-            <div class="empty" *ngIf="boards.length===0">No boards for this team.</div>
-          </div>
-
-          <div class="section" *ngIf="selectedBoardId">
-            <h3>Comments & Mentions</h3>
-            <div class="input-row">
-              <input type="text" [(ngModel)]="newCommentAuthor" placeholder="Author" />
-              <input type="text" [(ngModel)]="newCommentText" placeholder="Comment (use @name mentions)" (keyup.enter)="addComment()" />
-              <button (click)="addComment()">Post</button>
-            </div>
-
-            <div class="mention-row" *ngIf="mentionStats.length > 0">
-              <span class="pill" *ngFor="let m of mentionStats">@{{ m.user }} <strong>×{{ m.count }}</strong></span>
-            </div>
-
-            <ul class="history-list" *ngIf="comments.length > 0">
-              <li *ngFor="let c of comments">
-                <div class="comment-line"><strong>{{ c.author }}:</strong> <span [innerHTML]="highlightMentions(c.content)"></span></div>
-                <span class="history-meta">{{ formatTime(c.createdAt) }}</span>
-              </li>
-            </ul>
-            <div class="empty" *ngIf="comments.length===0">No comments yet.</div>
-          </div>
-        </div>
       </main>
     </div>
   `,
   styles: [`
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    .page { min-height: 100vh; background: linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%); font-family: 'Segoe UI', Arial, sans-serif; color: #eee; padding: 0 16px 40px; }
+    .page {
+      min-height: 100vh;
+      background: linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #eee;
+      padding: 0 16px 40px;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+    .light-theme {
+      background: linear-gradient(135deg,#f8fafc 0%,#e2e8f0 50%,#cbd5e1 100%);
+      color: #1f2937;
+    }
     header { text-align: center; padding: 40px 0 24px; }
     .header-icon { font-size: 48px; display: block; margin-bottom: 8px; }
-    h1 { font-size: 2rem; font-weight: 700; color: #fff; }
-    .subtitle { display: inline-block; margin-top: 6px; font-size: .9rem; color: #a0aec0; text-transform: capitalize; }
-    main { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+    h1 { font-size: 2rem; font-weight: 700; }
+    .subtitle { display: inline-block; margin-top: 6px; font-size: .9rem; color: #94a3b8; text-transform: capitalize; }
+    .light-theme .subtitle { color: #475569; }
+    main { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
     .card { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: 24px; backdrop-filter: blur(8px); }
+    .light-theme .card { background: rgba(255,255,255,.75); border-color: rgba(15,23,42,.15); }
     .input-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-    input, select, textarea { flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; background: rgba(255,255,255,.08); color: #fff; font-size: 14px; outline: none; }
-    input::placeholder, textarea::placeholder { color: #718096; }
-    select option { background:#1a1a2e; color:#fff; }
+    input, select { flex: 1; min-width: 130px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; background: rgba(255,255,255,.08); color: inherit; font-size: 14px; outline: none; }
+    .light-theme input, .light-theme select { border-color: rgba(15,23,42,.25); background: rgba(255,255,255,.95); }
+    input::placeholder { color: #718096; }
     button { padding: 10px 18px; background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .small { font-size: 12px; color: #94a3b8; }
+    .light-theme .small { color: #334155; }
     .greeting-display { margin-top: 12px; padding: 16px; background: rgba(99,179,237,.12); border: 1px solid rgba(99,179,237,.3); border-radius: 12px; text-align: center; }
-    .greeting-text { font-size: 1.4rem; font-weight: 600; color: #bee3f8; }
-    .error { margin-top: 10px; color: #fc8181; font-size: 13px; }
-    .stats-card h2, .history-card h2, .collaboration-card h2 { font-size: 1rem; margin-bottom: 12px; color: #a0aec0; }
+    .greeting-text { font-size: 1.4rem; font-weight: 600; }
+    .error { margin-top: 10px; color: #ef4444; font-size: 13px; }
+    .stats-card h2, .history-card h2, .personalization-card h2 { font-size: 1rem; margin-bottom: 12px; color: #a0aec0; }
+    .light-theme .stats-card h2, .light-theme .history-card h2, .light-theme .personalization-card h2 { color: #334155; }
     .stats-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-    .stat-number { font-size: 2.2rem; font-weight: 700; color: #68d391; line-height: 1; }
-    .stat-label { font-size: .75rem; color: #718096; margin-top: 4px; display:block; }
-    .name-pills, .mention-row { display: flex; flex-wrap: wrap; gap: 6px; }
-    .pill { padding: 4px 10px; background: rgba(102,126,234,.25); border: 1px solid rgba(102,126,234,.4); border-radius: 20px; font-size: 12px; color: #c3dafe; }
-    .pill strong { color: #fff; }
+    .stat-number { font-size: 2.2rem; font-weight: 700; color: #22c55e; line-height: 1; }
+    .stat-label { font-size: .75rem; color: #718096; margin-top: 4px; display: block; }
+    .name-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pill { padding: 4px 10px; background: rgba(102,126,234,.25); border: 1px solid rgba(102,126,234,.4); border-radius: 20px; font-size: 12px; }
     .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .clear-btn { padding: 6px 12px; font-size: 12px; background: rgba(252,129,129,.15); border: 1px solid rgba(252,129,129,.4); color: #fc8181; border-radius: 8px; }
+    .clear-btn { padding: 6px 12px; font-size: 12px; background: rgba(252,129,129,.15); border: 1px solid rgba(252,129,129,.4); color: #ef4444; border-radius: 8px; }
     .empty { color: #718096; font-size: 13px; padding: 8px 0; }
     .history-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
     .history-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,.04); border-radius: 10px; gap: 10px; flex-wrap: wrap; }
-    .history-msg { font-size: 14px; color: #e2e8f0; }
+    .light-theme .history-list li { background: rgba(15,23,42,.06); }
+    .history-msg { font-size: 14px; }
     .history-meta { font-size: 11px; color: #718096; white-space: nowrap; }
-    .section { margin-top: 14px; padding-top: 12px; border-top: 1px dashed rgba(255,255,255,.12); }
-    .section h3 { margin-bottom: 8px; color: #c3dafe; font-size: .9rem; }
-    .chip-row { display:flex; gap:8px; flex-wrap: wrap; margin-top: 8px; }
-    .chip { background: rgba(99,179,237,.18); border:1px solid rgba(99,179,237,.4); }
-    .active-chip { background: rgba(104,211,145,.25); border-color: rgba(104,211,145,.6); }
-    .board-list { display:flex; flex-direction:column; gap:8px; margin-top: 8px; }
-    .board-item { padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.03); cursor:pointer; }
-    .board-item small { color:#9fb3d1; }
-    .active-board { border-color: rgba(104,211,145,.7); background: rgba(104,211,145,.12); }
-    .comment-line { color: #e2e8f0; }
   `]
 })
 export class AppComponent implements OnInit {
@@ -213,20 +180,17 @@ export class AppComponent implements OnInit {
   history: HistoryItem[] = [];
   stats: StatsResponse | null = null;
 
-  newTeamName = '';
-  teams: Team[] = [];
-  selectedTeamId: number | null = null;
+  profile: UserProfile = {
+    username: 'nishtha',
+    displayName: 'Nishtha',
+    preferredLanguage: 'en',
+    timezone: 'UTC',
+    theme: 'dark',
+    updatedAt: ''
+  };
 
-  newBoardTitle = '';
-  newBoardDescription = '';
-  newBoardOwner = '';
-  boards: Board[] = [];
-  selectedBoardId: number | null = null;
-
-  newCommentAuthor = '';
-  newCommentText = '';
-  comments: BoardComment[] = [];
-  mentionStats: { user: string; count: number }[] = [];
+  timezones = ['UTC', 'Asia/Kolkata', 'Europe/London', 'America/New_York', 'Asia/Tokyo'];
+  activeTheme: 'dark' | 'light' = 'dark';
 
   constructor(private http: HttpClient) {}
 
@@ -235,7 +199,7 @@ export class AppComponent implements OnInit {
     this.loadLanguages();
     this.loadHistory();
     this.loadStats();
-    this.loadTeams();
+    this.loadProfile();
   }
 
   setTimeContext() {
@@ -250,6 +214,56 @@ export class AppComponent implements OnInit {
     this.http.get<Language[]>('/api/greeting/languages').subscribe({
       next: (langs) => this.languages = langs,
       error: () => this.languages = [{ code: 'en', name: 'English' }]
+    });
+  }
+
+  loadProfile() {
+    const username = (this.profile.username || '').trim();
+    if (!username) return;
+    this.http.get<UserProfile>(`/api/profile?username=${encodeURIComponent(username)}`).subscribe({
+      next: (p) => {
+        this.profile = p;
+        this.selectedLang = p.preferredLanguage || 'en';
+        this.name = p.displayName || '';
+        this.activeTheme = p.theme || 'dark';
+      },
+      error: () => {}
+    });
+  }
+
+  saveProfile() {
+    const p = this.profile;
+    const query = `username=${encodeURIComponent(p.username)}&displayName=${encodeURIComponent(p.displayName)}&preferredLanguage=${encodeURIComponent(p.preferredLanguage)}&timezone=${encodeURIComponent(p.timezone)}&theme=${encodeURIComponent(p.theme)}`;
+    this.http.post<UserProfile>(`/api/profile?${query}`, {}).subscribe({
+      next: (updated) => {
+        this.profile = updated;
+        this.selectedLang = updated.preferredLanguage;
+        this.name = updated.displayName;
+        this.activeTheme = updated.theme;
+      },
+      error: () => this.error = 'Failed to save profile'
+    });
+  }
+
+  getPersonalizedGreeting() {
+    const username = (this.profile.username || '').trim();
+    if (!username) {
+      this.error = 'Enter username first';
+      return;
+    }
+    this.loading = true;
+    this.error = '';
+    this.http.get<GreetingResponse>(`/api/greeting/personalized?username=${encodeURIComponent(username)}`).subscribe({
+      next: (res) => {
+        this.greeting = res.message;
+        this.loading = false;
+        this.loadHistory();
+        this.loadStats();
+      },
+      error: () => {
+        this.loading = false;
+        this.error = 'Failed to load personalized greeting';
+      }
     });
   }
 
@@ -290,117 +304,9 @@ export class AppComponent implements OnInit {
     });
   }
 
-  loadTeams() {
-    this.http.get<Team[]>('/api/collab/teams').subscribe({
-      next: (teams) => {
-        this.teams = teams;
-        if (!this.selectedTeamId && teams.length > 0) {
-          this.selectTeam(teams[0].id);
-        }
-      },
-      error: () => {}
-    });
-  }
-
-  createTeam() {
-    const name = this.newTeamName.trim();
-    if (!name) return;
-    this.http.post<Team>(`/api/collab/teams?name=${encodeURIComponent(name)}`, {}).subscribe({
-      next: (team) => {
-        this.newTeamName = '';
-        this.loadTeams();
-        this.selectTeam(team.id);
-      },
-      error: () => {}
-    });
-  }
-
-  selectTeam(teamId: number) {
-    this.selectedTeamId = teamId;
-    this.selectedBoardId = null;
-    this.comments = [];
-    this.mentionStats = [];
-    this.loadBoards();
-  }
-
-  loadBoards() {
-    if (!this.selectedTeamId) return;
-    this.http.get<Board[]>(`/api/collab/boards?teamId=${this.selectedTeamId}`).subscribe({
-      next: (boards) => {
-        this.boards = boards;
-        if (boards.length > 0) {
-          this.selectBoard(boards[0].id);
-        }
-      },
-      error: () => {}
-    });
-  }
-
-  createBoard() {
-    if (!this.selectedTeamId) return;
-    const title = this.newBoardTitle.trim();
-    if (!title) return;
-    const owner = (this.newBoardOwner || 'Anonymous').trim();
-    const description = this.newBoardDescription.trim();
-    const url = `/api/collab/boards?teamId=${this.selectedTeamId}&title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&owner=${encodeURIComponent(owner)}`;
-    this.http.post<Board>(url, {}).subscribe({
-      next: () => {
-        this.newBoardTitle = '';
-        this.newBoardDescription = '';
-        this.newBoardOwner = '';
-        this.loadBoards();
-      },
-      error: () => {}
-    });
-  }
-
-  selectBoard(boardId: number) {
-    this.selectedBoardId = boardId;
-    this.loadComments();
-    this.loadMentionStats();
-  }
-
-  addComment() {
-    if (!this.selectedBoardId) return;
-    const content = this.newCommentText.trim();
-    if (!content) return;
-    const author = (this.newCommentAuthor || 'Anonymous').trim();
-    const url = `/api/collab/comments?boardId=${this.selectedBoardId}&author=${encodeURIComponent(author)}&content=${encodeURIComponent(content)}`;
-    this.http.post<BoardComment>(url, {}).subscribe({
-      next: () => {
-        this.newCommentText = '';
-        this.loadComments();
-        this.loadMentionStats();
-      },
-      error: () => {}
-    });
-  }
-
-  loadComments() {
-    if (!this.selectedBoardId) return;
-    this.http.get<BoardComment[]>(`/api/collab/comments?boardId=${this.selectedBoardId}`).subscribe({
-      next: (comments) => this.comments = comments,
-      error: () => {}
-    });
-  }
-
-  loadMentionStats() {
-    if (!this.selectedBoardId) return;
-    this.http.get<{ user: string; count: number }[]>(`/api/collab/mentions?boardId=${this.selectedBoardId}`).subscribe({
-      next: (stats) => this.mentionStats = stats,
-      error: () => {}
-    });
-  }
-
-  highlightMentions(text: string): string {
-    return text.replace(
-      /@([A-Za-z0-9._-]+)/g,
-      '<span style="color:#68d391;font-weight:700;">@$1</span>'
-    );
-  }
-
   formatTime(ts: string): string {
     const d = new Date(ts);
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   }
 }

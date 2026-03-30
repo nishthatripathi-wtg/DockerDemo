@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.service.GreetingService;
+import com.example.demo.service.UserProfileService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,9 @@ public class GreetingController {
     private GreetingService greetingService;
 
     @Autowired
+    private UserProfileService userProfileService;
+
+    @Autowired
     private DataSource dataSource;
 
     @GetMapping("/api/greeting")
@@ -27,6 +31,11 @@ public class GreetingController {
             @RequestParam(defaultValue = "World") String name,
             @RequestParam(defaultValue = "en") String lang) {
         return greetingService.greet(name, lang);
+    }
+
+    @GetMapping("/api/greeting/personalized")
+    public Map<String, Object> personalized(@RequestParam String username) {
+        return greetingService.greetForUser(username);
     }
 
     @GetMapping("/api/greeting/history")
@@ -48,6 +57,21 @@ public class GreetingController {
     @GetMapping("/api/greeting/languages")
     public List<Map<String, String>> languages() {
         return greetingService.getSupportedLanguages();
+    }
+
+    @GetMapping("/api/profile")
+    public Map<String, Object> profile(@RequestParam String username) {
+        return userProfileService.getOrCreate(username);
+    }
+
+    @PostMapping("/api/profile")
+    public Map<String, Object> updateProfile(
+            @RequestParam String username,
+            @RequestParam String displayName,
+            @RequestParam String preferredLanguage,
+            @RequestParam String timezone,
+            @RequestParam String theme) {
+        return userProfileService.update(username, displayName, preferredLanguage, timezone, theme);
     }
 
     @GetMapping("/db")

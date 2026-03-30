@@ -1,7 +1,9 @@
 package com.example.demo.service;
 
 import com.example.demo.model.GreetingRecord;
+import com.example.demo.model.UserProfile;
 import com.example.demo.repository.GreetingRepository;
+import com.example.demo.repository.UserProfileRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,9 @@ public class GreetingService {
 
     @Autowired
     private GreetingRepository repository;
+
+    @Autowired
+    private UserProfileRepository userProfileRepository;
 
     // Each entry: [morning, afternoon, evening, night]
     private static final Map<String, String[]> GREETINGS = new LinkedHashMap<>();
@@ -66,6 +71,12 @@ public class GreetingService {
         response.put("language", lang);
         response.put("timeOfDay", getTimeOfDayLabel());
         return response;
+    }
+
+    public Map<String, Object> greetForUser(String username) {
+        UserProfile profile = userProfileRepository.findByUsername(username.trim().toLowerCase())
+                .orElseThrow(() -> new IllegalArgumentException("User profile not found"));
+        return greet(profile.getDisplayName(), profile.getPreferredLanguage());
     }
 
     public List<Map<String, Object>> getHistory() {
