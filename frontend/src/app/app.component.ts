@@ -33,6 +33,12 @@ interface UserProfile {
   updatedAt: string;
 }
 
+interface AuthResponse {
+  username: string;
+  message: string;
+  profile: UserProfile;
+}
+
 @Component({
   selector: 'app-root',
   template: `
@@ -44,11 +50,25 @@ interface UserProfile {
       </header>
 
       <main>
+        <div class="card auth-card">
+          <h2>🔐 Login</h2>
+          <div class="input-row">
+            <input [(ngModel)]="auth.username" placeholder="username" />
+            <input [(ngModel)]="auth.password" type="password" placeholder="password (min 6 chars)" />
+            <input [(ngModel)]="auth.displayName" placeholder="display name (for signup)" />
+          </div>
+          <div class="input-row">
+            <button (click)="register()" [disabled]="authLoading">Register</button>
+            <button (click)="login()" [disabled]="authLoading">Login</button>
+            <span class="small" *ngIf="currentUser">Logged in as: <strong>{{ currentUser }}</strong></span>
+          </div>
+        </div>
+
         <div class="card personalization-card">
           <h2>👤 Personalization</h2>
           <div class="input-row">
             <input [(ngModel)]="profile.username" placeholder="username" />
-            <button (click)="loadProfile()">Load Profile</button>
+            <button (click)="loadProfile()" [disabled]="!currentUser">Load Profile</button>
           </div>
 
           <div class="input-row">
@@ -152,7 +172,8 @@ interface UserProfile {
     .greeting-text { font-size: 1.4rem; font-weight: 600; }
     .error { margin-top: 10px; color: #ef4444; font-size: 13px; }
     .stats-card h2, .history-card h2, .personalization-card h2 { font-size: 1rem; margin-bottom: 12px; color: #a0aec0; }
-    .light-theme .stats-card h2, .light-theme .history-card h2, .light-theme .personalization-card h2 { color: #334155; }
+    .auth-card h2 { font-size: 1rem; margin-bottom: 12px; color: #a0aec0; }
+    .light-theme .stats-card h2, .light-theme .history-card h2, .light-theme .personalization-card h2, .light-theme .auth-card h2 { color: #334155; }
     .stats-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
     .stat-number { font-size: 2.2rem; font-weight: 700; color: #22c55e; line-height: 1; }
     .stat-label { font-size: .75rem; color: #718096; margin-top: 4px; display: block; }
@@ -189,6 +210,14 @@ export class AppComponent implements OnInit {
     updatedAt: ''
   };
 
+  auth = {
+    username: '',
+    password: '',
+    displayName: ''
+  };
+  currentUser = '';
+  authLoading = false;
+
   timezones = ['UTC', 'Asia/Kolkata', 'Europe/London', 'America/New_York', 'Asia/Tokyo'];
   activeTheme: 'dark' | 'light' = 'dark';
 
@@ -199,7 +228,71 @@ export class AppComponent implements OnInit {
     this.loadLanguages();
     this.loadHistory();
     this.loadStats();
+    this.restoreSession();
+  }
+
+  restoreSession() {
+    const saved = localStorage.getItem('greeting-user');
+    if (!saved) return;
+    this.currentUser = saved;
+    this.profile.username = saved;
     this.loadProfile();
+  }
+
+  applyAuthResult(res: AuthResponse) {
+    this.currentUser = res.username;
+    localStorage.setItem('greeting-user', res.username);
+    this.profile = res.profile;
+    this.selectedLang = res.profile.preferredLanguage || 'en';
+    this.name = res.profile.displayName || '';
+    this.activeTheme = res.profile.theme || 'dark';
+  }
+
+  register() {
+    const username = this.auth.username.trim();
+    const password = this.auth.password;
+    const displayName = this.auth.displayName.trim() || username;
+    if (!username || !password) {
+      this.error = 'Username and password are required';
+      return;
+    }
+    this.authLoading = true;
+    this.error = '';
+    const query = `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&displayName=${encodeURIComponent(displayName)}&preferredLanguage=${encodeURIComponent(this.profile.preferredLanguage || 'en')}&timezone=${encodeURIComponent(this.profile.timezone || 'UTC')}&theme=${encodeURIComponent(this.profile.theme || 'dark')}`;
+    this.http.post<AuthResponse>(`/api/auth/register?${query}`, {}).subscribe({
+      next: (res) => {
+        this.applyAuthResult(res);
+        this.auth.password = '';
+        this.authLoading = false;
+      },
+      error: () => {
+        this.error = 'Registration failed';
+        this.authLoading = false;
+      }
+    });
+  }
+
+  login() {
+    const username = this.auth.username.trim();
+    const password = this.auth.password;
+    if (!username || !password) {
+      this.error = 'Username and password are required';
+      return;
+    }
+    this.authLoading = true;
+    this.error = '';
+    const query = `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+    this.http.post<AuthResponse>(`/api/auth/login?${query}`, {}).subscribe({
+      next: (res) => {
+        this.applyAuthResult(res);
+        this.auth.password = '';
+        this.authLoading = false;
+      },
+      error: () => {
+        this.error = 'Login failed';
+        this.authLoading = false;
+      }
+    });
   }
 
   setTimeContext() {
@@ -218,7 +311,7 @@ export class AppComponent implements OnInit {
   }
 
   loadProfile() {
-    const username = (this.profile.username || '').trim();
+    const username = (this.currentUser || this.profile.username || '').trim();
     if (!username) return;
     this.http.get<UserProfile>(`/api/profile?username=${encodeURIComponent(username)}`).subscribe({
       next: (p) => {
@@ -232,6 +325,11 @@ export class AppComponent implements OnInit {
   }
 
   saveProfile() {
+    if (!this.currentUser) {
+      this.error = 'Login first to save personalization';
+      return;
+    }
+    this.profile.username = this.currentUser;
     const p = this.profile;
     const query = `username=${encodeURIComponent(p.username)}&displayName=${encodeURIComponent(p.displayName)}&preferredLanguage=${encodeURIComponent(p.preferredLanguage)}&timezone=${encodeURIComponent(p.timezone)}&theme=${encodeURIComponent(p.theme)}`;
     this.http.post<UserProfile>(`/api/profile?${query}`, {}).subscribe({
@@ -246,9 +344,9 @@ export class AppComponent implements OnInit {
   }
 
   getPersonalizedGreeting() {
-    const username = (this.profile.username || '').trim();
+    const username = (this.currentUser || '').trim();
     if (!username) {
-      this.error = 'Enter username first';
+      this.error = 'Login first';
       return;
     }
     this.loading = true;
