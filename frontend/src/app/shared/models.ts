@@ -1,21 +1,3 @@
-export interface GreetingResponse {
-  message: string;
-  language: string;
-  timeOfDay: string;
-}
-
-export interface HistoryItem {
-  name: string;
-  language: string;
-  message: string;
-  timestamp: string;
-}
-
-export interface StatsResponse {
-  total: number;
-  topNames: { name: string; count: number }[];
-}
-
 export interface Language {
   code: string;
   name: string;
@@ -34,4 +16,25 @@ export interface AuthResponse {
   username: string;
   message: string;
   profile: UserProfile;
+}
+
+export interface UserMessage {
+  id: number;
+  sender: string;
+  recipient: string;
+  content: string;
+  language: string;
+  translatedContent?: string;
+  translatedLanguage?: string;
+  parentMessageId?: number | null;
+  createdAt: string;
+}
+
+export interface MessageHistoryItem {
+  messageId: number;
+  from: string;
+  to: string;
+  at: string;
+  content: string;
+  direction: 'inbound' | 'outbound';
 }

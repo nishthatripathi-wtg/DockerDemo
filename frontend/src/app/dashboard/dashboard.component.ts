@@ -2,23 +2,21 @@ import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { AuthStateService } from '../shared/auth-state.service';
-import { GreetingResponse, HistoryItem, Language, StatsResponse, UserProfile } from '../shared/models';
+import { Language, MessageHistoryItem, UserMessage, UserProfile } from '../shared/models';
 
 @Component({
   selector: 'app-dashboard',
   template: `
     <div class="page" [class.light-theme]="activeTheme==='light'">
       <header>
-        <span class="header-icon">{{ timeIcon }}</span>
-        <h1>Greeting Service</h1>
-        <span class="subtitle">{{ timeLabel }}</span>
+        <span class="header-icon">💬</span>
+        <h1>Message Board</h1>
+        <span class="subtitle">Send custom greetings to other users</span>
       </header>
 
       <main>
         <div class="card topbar">
-          <div>
-            Logged in as <strong>{{ currentUser }}</strong>
-          </div>
+          <div>Logged in as <strong>{{ currentUser }}</strong></div>
           <button (click)="logout()">Logout</button>
         </div>
 
@@ -38,54 +36,54 @@ import { GreetingResponse, HistoryItem, Language, StatsResponse, UserProfile } f
             </select>
             <button (click)="saveProfile()">Save</button>
           </div>
-
-          <div class="input-row">
-            <button (click)="getPersonalizedGreeting()">Use My Preferences</button>
-          </div>
           <div class="small" *ngIf="profile.updatedAt">Last updated: {{ formatTime(profile.updatedAt) }}</div>
         </div>
 
-        <div class="card greet-card">
+        <div class="card send-card">
+          <h2>✉️ Send Greeting Message</h2>
           <div class="input-row">
-            <input type="text" [(ngModel)]="name" placeholder="Enter your name" (keyup.enter)="getGreeting()" />
-            <select [(ngModel)]="selectedLang">
+            <input [(ngModel)]="recipient" placeholder="recipient username" />
+            <select [(ngModel)]="selectedLanguage">
               <option *ngFor="let lang of languages" [value]="lang.code">{{ lang.name }}</option>
             </select>
-            <button (click)="getGreeting()" [disabled]="loading">{{ loading ? '...' : 'Say Hello' }}</button>
           </div>
-
-          <div class="greeting-display" *ngIf="greeting">
-            <span class="greeting-text">{{ greeting }}</span>
+          <div class="input-row">
+            <input [(ngModel)]="messageText" placeholder="Write your custom greeting..." (keyup.enter)="sendMessage()" />
+            <button (click)="sendMessage()">Send</button>
           </div>
           <div class="error" *ngIf="error">{{ error }}</div>
+          <div class="success" *ngIf="success">{{ success }}</div>
         </div>
 
-        <div class="card stats-card" *ngIf="stats">
-          <h2>📊 Stats</h2>
-          <div class="stats-row">
-            <div class="stat-block">
-              <span class="stat-number">{{ stats.total }}</span>
-              <span class="stat-label">Total Greetings</span>
-            </div>
-            <div class="top-names" *ngIf="stats.topNames.length > 0">
-              <span class="stat-label">Most Greeted</span>
-              <div class="name-pills">
-                <span class="pill" *ngFor="let n of stats.topNames">{{ n.name }} <strong>×{{ n.count }}</strong></span>
+        <div class="card inbox-card">
+          <h2>📥 Inbox</h2>
+          <div class="empty" *ngIf="inbox.length===0">No messages yet.</div>
+          <ul class="message-list" *ngIf="inbox.length>0">
+            <li *ngFor="let m of inbox">
+              <div class="line"><strong>From:</strong> {{ m.sender }} · <strong>At:</strong> {{ formatTime(m.createdAt) }}</div>
+              <div class="line">{{ m.translatedContent || m.content }}</div>
+              <div class="actions">
+                <select [(ngModel)]="translateTarget[m.id]">
+                  <option *ngFor="let lang of languages" [value]="lang.code">{{ lang.name }}</option>
+                </select>
+                <button (click)="translateMessage(m.id)">Translate</button>
+                <input [(ngModel)]="replyText[m.id]" placeholder="Reply..." />
+                <button (click)="replyToMessage(m.id)">Reply</button>
               </div>
-            </div>
-          </div>
+            </li>
+          </ul>
         </div>
 
         <div class="card history-card">
-          <div class="history-header">
-            <h2>🕐 Recent Greetings</h2>
-            <button class="clear-btn" (click)="clearHistory()" *ngIf="history.length > 0">Clear</button>
-          </div>
-          <div class="empty" *ngIf="history.length === 0">No greetings yet — say hello!</div>
-          <ul class="history-list" *ngIf="history.length > 0">
-            <li *ngFor="let item of history">
-              <span class="history-msg">{{ item.message }}</span>
-              <span class="history-meta">{{ formatTime(item.timestamp) }}</span>
+          <h2>🕓 Message History</h2>
+          <div class="empty" *ngIf="history.length===0">No history yet.</div>
+          <ul class="message-list" *ngIf="history.length>0">
+            <li *ngFor="let h of history">
+              <div class="line">
+                <span class="tag" [class.inbound]="h.direction==='inbound'" [class.outbound]="h.direction==='outbound'">{{ h.direction }}</span>
+                {{ h.from }} → {{ h.to }} · {{ formatTime(h.at) }}
+              </div>
+              <div class="line">{{ h.content }}</div>
             </li>
           </ul>
         </div>
@@ -97,53 +95,36 @@ import { GreetingResponse, HistoryItem, Language, StatsResponse, UserProfile } f
     .page { min-height: 100vh; background: linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%); font-family: 'Segoe UI', Arial, sans-serif; color: #eee; padding: 0 16px 40px; transition: background .25s ease, color .25s ease; }
     .light-theme { background: linear-gradient(135deg,#f8fafc 0%,#e2e8f0 50%,#cbd5e1 100%); color: #1f2937; }
     header { text-align: center; padding: 40px 0 24px; }
-    .header-icon { font-size: 48px; display: block; margin-bottom: 8px; }
+    .header-icon { font-size: 44px; display:block; margin-bottom:8px; }
     h1 { font-size: 2rem; font-weight: 700; }
-    .subtitle { display: inline-block; margin-top: 6px; font-size: .9rem; color: #94a3b8; text-transform: capitalize; }
-    .light-theme .subtitle { color: #475569; }
-    main { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-    .card { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: 24px; backdrop-filter: blur(8px); }
+    .subtitle { display:inline-block; margin-top:6px; font-size:.9rem; color:#94a3b8; }
+    .light-theme .subtitle { color:#475569; }
+    main { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+    .card { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: 20px; backdrop-filter: blur(8px); }
     .light-theme .card { background: rgba(255,255,255,.75); border-color: rgba(15,23,42,.15); }
     .topbar { display:flex; justify-content:space-between; align-items:center; }
-    .input-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-    input, select { flex: 1; min-width: 130px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; background: rgba(255,255,255,.08); color: inherit; font-size: 14px; outline: none; }
+    h2 { font-size: 1rem; margin-bottom: 12px; color: #a0aec0; }
+    .light-theme h2 { color: #334155; }
+    .input-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+    input, select { flex:1; min-width:140px; padding:10px 12px; border:1px solid rgba(255,255,255,.2); border-radius:10px; background:rgba(255,255,255,.08); color:inherit; font-size:14px; }
     .light-theme input, .light-theme select { border-color: rgba(15,23,42,.25); background: rgba(255,255,255,.95); }
-    input::placeholder { color: #718096; }
-    button { padding: 10px 18px; background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-    .small { font-size: 12px; color: #94a3b8; }
-    .light-theme .small { color: #334155; }
-    .greeting-display { margin-top: 12px; padding: 16px; background: rgba(99,179,237,.12); border: 1px solid rgba(99,179,237,.3); border-radius: 12px; text-align: center; }
-    .greeting-text { font-size: 1.4rem; font-weight: 600; }
-    .error { margin-top: 10px; color: #ef4444; font-size: 13px; }
-    .stats-card h2, .history-card h2, .personalization-card h2 { font-size: 1rem; margin-bottom: 12px; color: #a0aec0; }
-    .light-theme .stats-card h2, .light-theme .history-card h2, .light-theme .personalization-card h2 { color: #334155; }
-    .stats-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-    .stat-number { font-size: 2.2rem; font-weight: 700; color: #22c55e; line-height: 1; }
-    .stat-label { font-size: .75rem; color: #718096; margin-top: 4px; display: block; }
-    .name-pills { display: flex; flex-wrap: wrap; gap: 6px; }
-    .pill { padding: 4px 10px; background: rgba(102,126,234,.25); border: 1px solid rgba(102,126,234,.4); border-radius: 20px; font-size: 12px; }
-    .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .clear-btn { padding: 6px 12px; font-size: 12px; background: rgba(252,129,129,.15); border: 1px solid rgba(252,129,129,.4); color: #ef4444; border-radius: 8px; }
-    .empty { color: #718096; font-size: 13px; padding: 8px 0; }
-    .history-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-    .history-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,.04); border-radius: 10px; gap: 10px; flex-wrap: wrap; }
-    .light-theme .history-list li { background: rgba(15,23,42,.06); }
-    .history-msg { font-size: 14px; }
-    .history-meta { font-size: 11px; color: #718096; white-space: nowrap; }
+    button { padding:10px 16px; border:none; border-radius:10px; background: linear-gradient(135deg,#667eea,#764ba2); color:#fff; font-weight:600; cursor:pointer; }
+    .message-list { list-style:none; display:flex; flex-direction:column; gap:10px; }
+    .message-list li { padding:12px; border-radius:10px; background: rgba(255,255,255,.04); }
+    .light-theme .message-list li { background: rgba(15,23,42,.06); }
+    .line { margin-bottom:6px; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .tag { padding:2px 8px; border-radius:99px; font-size:11px; margin-right:8px; }
+    .inbound { background:#dcfce7; color:#166534; }
+    .outbound { background:#dbeafe; color:#1e40af; }
+    .empty { color:#718096; font-size:13px; }
+    .small { font-size:12px; color:#94a3b8; }
+    .error { color:#ef4444; font-size:13px; }
+    .success { color:#22c55e; font-size:13px; }
   `]
 })
 export class DashboardComponent implements OnInit {
-  name = '';
-  selectedLang = 'en';
-  languages: Language[] = [];
-  greeting = '';
-  error = '';
-  loading = false;
-  timeIcon = '🌍';
-  timeLabel = '';
-  history: HistoryItem[] = [];
-  stats: StatsResponse | null = null;
-
+  currentUser = '';
   profile: UserProfile = {
     username: '',
     displayName: '',
@@ -153,24 +134,34 @@ export class DashboardComponent implements OnInit {
     updatedAt: ''
   };
 
+  languages: Language[] = [];
   timezones = ['UTC', 'Asia/Kolkata', 'Europe/London', 'America/New_York', 'Asia/Tokyo'];
   activeTheme: 'dark' | 'light' = 'dark';
-  currentUser = '';
+
+  recipient = '';
+  messageText = '';
+  selectedLanguage = 'en';
+  inbox: UserMessage[] = [];
+  history: MessageHistoryItem[] = [];
+  replyText: Record<number, string> = {};
+  translateTarget: Record<number, string> = {};
+
+  error = '';
+  success = '';
 
   constructor(private http: HttpClient, private authState: AuthStateService, private router: Router) {}
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.currentUser = this.authState.getCurrentUser();
     if (!this.currentUser) {
       this.router.navigate(['/auth']);
       return;
     }
     this.profile.username = this.currentUser;
-    this.setTimeContext();
     this.loadLanguages();
-    this.loadHistory();
-    this.loadStats();
     this.loadProfile();
+    this.loadInbox();
+    this.loadHistory();
   }
 
   logout(): void {
@@ -178,112 +169,123 @@ export class DashboardComponent implements OnInit {
     this.router.navigate(['/auth']);
   }
 
-  setTimeContext() {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) { this.timeIcon = '☀️'; this.timeLabel = 'Good morning'; }
-    else if (hour >= 12 && hour < 18) { this.timeIcon = '🌤️'; this.timeLabel = 'Good afternoon'; }
-    else if (hour >= 18 && hour < 22) { this.timeIcon = '🌆'; this.timeLabel = 'Good evening'; }
-    else { this.timeIcon = '🌙'; this.timeLabel = 'Good night'; }
-  }
-
-  loadLanguages() {
+  loadLanguages(): void {
     this.http.get<Language[]>('/api/greeting/languages').subscribe({
-      next: (langs) => this.languages = langs,
-      error: () => this.languages = [{ code: 'en', name: 'English' }]
+      next: (langs) => {
+        this.languages = langs;
+        if (!this.translateTarget) {
+          this.translateTarget = {};
+        }
+      },
+      error: () => {
+        this.languages = [{ code: 'en', name: 'English' }];
+      }
     });
   }
 
-  loadProfile() {
-    const username = this.currentUser;
-    if (!username) return;
-    this.http.get<UserProfile>(`/api/profile?username=${encodeURIComponent(username)}`).subscribe({
+  loadProfile(): void {
+    this.http.get<UserProfile>(`/api/profile?username=${encodeURIComponent(this.currentUser)}`).subscribe({
       next: (p) => {
         this.profile = p;
-        this.selectedLang = p.preferredLanguage || 'en';
-        this.name = p.displayName || '';
         this.activeTheme = p.theme || 'dark';
+        this.selectedLanguage = p.preferredLanguage || 'en';
       },
       error: () => {}
     });
   }
 
-  saveProfile() {
-    this.profile.username = this.currentUser;
+  saveProfile(): void {
     const p = this.profile;
-    const query = `username=${encodeURIComponent(p.username)}&displayName=${encodeURIComponent(p.displayName)}&preferredLanguage=${encodeURIComponent(p.preferredLanguage)}&timezone=${encodeURIComponent(p.timezone)}&theme=${encodeURIComponent(p.theme)}`;
+    const query = `username=${encodeURIComponent(this.currentUser)}&displayName=${encodeURIComponent(p.displayName)}&preferredLanguage=${encodeURIComponent(p.preferredLanguage)}&timezone=${encodeURIComponent(p.timezone)}&theme=${encodeURIComponent(p.theme)}`;
     this.http.post<UserProfile>(`/api/profile?${query}`, {}).subscribe({
       next: (updated) => {
         this.profile = updated;
-        this.selectedLang = updated.preferredLanguage;
-        this.name = updated.displayName;
-        this.activeTheme = updated.theme;
+        this.activeTheme = updated.theme || 'dark';
+        this.success = 'Profile saved';
+        this.error = '';
       },
-      error: () => this.error = 'Failed to save profile'
+      error: () => {
+        this.error = 'Failed to save profile';
+        this.success = '';
+      }
     });
   }
 
-  getPersonalizedGreeting() {
-    const username = this.currentUser;
-    if (!username) {
-      this.error = 'Login first';
+  sendMessage(): void {
+    this.error = '';
+    this.success = '';
+    const recipient = this.recipient.trim().toLowerCase();
+    const content = this.messageText.trim();
+    if (!recipient || !content) {
+      this.error = 'Recipient and message are required';
       return;
     }
-    this.loading = true;
-    this.error = '';
-    this.http.get<GreetingResponse>(`/api/greeting/personalized?username=${encodeURIComponent(username)}`).subscribe({
-      next: (res) => {
-        this.greeting = res.message;
-        this.loading = false;
-        this.loadHistory();
-        this.loadStats();
-      },
-      error: () => {
-        this.loading = false;
-        this.error = 'Failed to load personalized greeting';
-      }
-    });
-  }
-
-  getGreeting() {
-    this.error = '';
-    this.loading = true;
-    const params = `?name=${encodeURIComponent(this.name || 'World')}&lang=${this.selectedLang}`;
-    this.http.get<GreetingResponse>(`/api/greeting${params}`).subscribe({
-      next: (res) => {
-        this.greeting = res.message;
-        this.loading = false;
-        this.loadHistory();
-        this.loadStats();
-      },
-      error: () => {
-        this.error = 'Could not reach the backend. Is it running?';
-        this.loading = false;
-      }
-    });
-  }
-
-  loadHistory() {
-    this.http.get<HistoryItem[]>('/api/greeting/history').subscribe({ next: (h) => this.history = h, error: () => {} });
-  }
-
-  loadStats() {
-    this.http.get<StatsResponse>('/api/greeting/stats').subscribe({ next: (s) => this.stats = s, error: () => {} });
-  }
-
-  clearHistory() {
-    this.http.delete('/api/greeting/history').subscribe({
+    const query = `sender=${encodeURIComponent(this.currentUser)}&recipient=${encodeURIComponent(recipient)}&content=${encodeURIComponent(content)}&language=${encodeURIComponent(this.selectedLanguage)}`;
+    this.http.post<UserMessage>(`/api/messages/send?${query}`, {}).subscribe({
       next: () => {
-        this.history = [];
-        this.loadStats();
-        this.greeting = '';
+        this.messageText = '';
+        this.success = 'Message sent';
+        this.loadHistory();
+      },
+      error: () => {
+        this.error = 'Failed to send message';
+      }
+    });
+  }
+
+  loadInbox(): void {
+    this.http.get<UserMessage[]>(`/api/messages/inbox?username=${encodeURIComponent(this.currentUser)}`).subscribe({
+      next: (items) => {
+        this.inbox = items;
+        for (const item of items) {
+          if (!this.translateTarget[item.id]) {
+            this.translateTarget[item.id] = this.profile.preferredLanguage || 'en';
+          }
+        }
       },
       error: () => {}
+    });
+  }
+
+  loadHistory(): void {
+    this.http.get<MessageHistoryItem[]>(`/api/messages/history?username=${encodeURIComponent(this.currentUser)}`).subscribe({
+      next: (items) => this.history = items,
+      error: () => {}
+    });
+  }
+
+  translateMessage(messageId: number): void {
+    const targetLanguage = this.translateTarget[messageId] || 'en';
+    const query = `messageId=${messageId}&targetLanguage=${encodeURIComponent(targetLanguage)}`;
+    this.http.post<UserMessage>(`/api/messages/translate?${query}`, {}).subscribe({
+      next: () => this.loadInbox(),
+      error: () => this.error = 'Failed to translate message'
+    });
+  }
+
+  replyToMessage(messageId: number): void {
+    const content = (this.replyText[messageId] || '').trim();
+    if (!content) {
+      this.error = 'Reply message is required';
+      return;
+    }
+    const query = `messageId=${messageId}&sender=${encodeURIComponent(this.currentUser)}&content=${encodeURIComponent(content)}&language=${encodeURIComponent(this.profile.preferredLanguage || 'en')}`;
+    this.http.post<UserMessage>(`/api/messages/reply?${query}`, {}).subscribe({
+      next: () => {
+        this.replyText[messageId] = '';
+        this.loadInbox();
+        this.loadHistory();
+        this.success = 'Reply sent';
+        this.error = '';
+      },
+      error: () => {
+        this.error = 'Failed to send reply';
+      }
     });
   }
 
   formatTime(ts: string): string {
     const d = new Date(ts);
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-      + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   }
 }

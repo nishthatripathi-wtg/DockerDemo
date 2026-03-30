@@ -1,6 +1,5 @@
 package com.example.demo.controller;
 
-import com.example.demo.service.GreetingService;
 import com.example.demo.service.UserProfileService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -18,45 +17,23 @@ import java.util.Map;
 public class GreetingController {
 
     @Autowired
-    private GreetingService greetingService;
-
-    @Autowired
     private UserProfileService userProfileService;
 
     @Autowired
     private DataSource dataSource;
 
-    @GetMapping("/api/greeting")
-    public Map<String, Object> greeting(
-            @RequestParam(defaultValue = "World") String name,
-            @RequestParam(defaultValue = "en") String lang) {
-        return greetingService.greet(name, lang);
-    }
-
-    @GetMapping("/api/greeting/personalized")
-    public Map<String, Object> personalized(@RequestParam String username) {
-        return greetingService.greetForUser(username);
-    }
-
-    @GetMapping("/api/greeting/history")
-    public List<Map<String, Object>> history() {
-        return greetingService.getHistory();
-    }
-
-    @GetMapping("/api/greeting/stats")
-    public Map<String, Object> stats() {
-        return greetingService.getStats();
-    }
-
-    @DeleteMapping("/api/greeting/history")
-    public ResponseEntity<Void> clearHistory() {
-        greetingService.clearHistory();
-        return ResponseEntity.noContent().build();
-    }
-
     @GetMapping("/api/greeting/languages")
     public List<Map<String, String>> languages() {
-        return greetingService.getSupportedLanguages();
+        return List.of(
+                Map.of("code", "en", "name", "English"),
+                Map.of("code", "es", "name", "Español"),
+                Map.of("code", "fr", "name", "Français"),
+                Map.of("code", "de", "name", "Deutsch"),
+                Map.of("code", "hi", "name", "हिन्दी"),
+                Map.of("code", "pt", "name", "Português"),
+                Map.of("code", "ja", "name", "日本語"),
+                Map.of("code", "ar", "name", "العربية")
+        );
     }
 
     @GetMapping("/api/profile")
