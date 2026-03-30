@@ -53,6 +53,8 @@ services:
     environment:
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - traefik_proxy
     deploy:
@@ -84,3 +86,6 @@ services:
 networks:
   traefik_proxy:
     external: true
+
+volumes:
+  postgres_data:

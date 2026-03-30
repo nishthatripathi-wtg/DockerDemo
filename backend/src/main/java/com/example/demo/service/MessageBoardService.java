@@ -1,14 +1,24 @@
 package com.example.demo.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.demo.model.UserMessage;
 import com.example.demo.repository.UserAccountRepository;
 import com.example.demo.repository.UserMessageRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.*;
 
 @Service
@@ -19,6 +29,20 @@ public class MessageBoardService {
 
     @Autowired
     private UserAccountRepository userAccountRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Value("${translation.provider.url}")
+    private String translationUrl;
+
+    @Value("${translation.provider.api-key:}")
+    private String translationApiKey;
+
+    @Value("${translation.provider.timeout-ms:5000}")
+    private int translationTimeoutMs;
+
+    private final HttpClient httpClient = HttpClient.newBuilder().build();
 
     private static final Map<String, String> LANGUAGE_NAMES = Map.of(
             "en", "English",
@@ -73,7 +97,7 @@ public class MessageBoardService {
         if (target.equals(message.getLanguage())) {
             message.setTranslatedContent(message.getContent());
         } else {
-            message.setTranslatedContent(fakeTranslate(message.getContent(), target));
+            message.setTranslatedContent(translateWithProvider(message.getContent(), message.getLanguage(), target));
         }
         message.setTranslatedLanguage(target);
 
@@ -154,9 +178,59 @@ public class MessageBoardService {
         return items;
     }
 
-    private String fakeTranslate(String text, String targetLanguage) {
-        String languageName = LANGUAGE_NAMES.getOrDefault(targetLanguage, targetLanguage);
-        return "[" + languageName + "] " + text;
+    private String translateWithProvider(String text, String sourceLanguage, String targetLanguage) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("q", text);
+        payload.put("source", sourceLanguage);
+        payload.put("target", targetLanguage);
+        payload.put("format", "text");
+        if (translationApiKey != null && !translationApiKey.trim().isEmpty()) {
+            payload.put("api_key", translationApiKey.trim());
+        }
+
+        final String body;
+        try {
+            body = objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "failed to build translation request", ex);
+        }
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(translationUrl))
+                .timeout(Duration.ofMillis(translationTimeoutMs))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+        final HttpResponse<String> response;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "translation provider request failed", ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "translation provider request interrupted", ex);
+        }
+
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "translation provider returned status " + response.statusCode()
+            );
+        }
+
+        final JsonNode root;
+        try {
+            root = objectMapper.readTree(response.body());
+        } catch (JsonProcessingException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "invalid translation provider response", ex);
+        }
+
+        String translated = root.path("translatedText").asText("").trim();
+        if (translated.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "translation provider returned empty translation");
+        }
+        return translated;
     }
 
     private String counterpart(String user, UserMessage message) {

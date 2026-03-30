@@ -15,3 +15,9 @@ spring:
     properties:
         hibernate:
           dialect: org.hibernate.dialect.PostgreSQLDialect
+
+translation:
+  provider:
+    url: https://translate.argosopentech.com/translate
+    api-key: ""
+    timeout-ms: 5000
