@@ -78,6 +78,22 @@ echo "[4/5] Deploying infrastructure stacks..."
 deploy traefik  "$DOCKER_DIR/docker-compose-traefik.yml"
 deploy git      "$DOCKER_DIR/docker-compose-git.yml"
 deploy registry "$DOCKER_DIR/docker-compose-registry.yml"
+
+# ── Build and push Jenkins image only if not already in registry ─────────────
+JENKINS_IMAGE="registry.myapp.com/jenkins-docker:latest"
+echo "      Checking Jenkins image in registry..."
+if curl -sf "http://registry.myapp.com/v2/jenkins-docker/manifests/latest" \
+     -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+     -o /dev/null 2>/dev/null; then
+  echo "      Jenkins image already in registry. Skipping build+push."
+else
+  echo "      Jenkins image not found — building..."
+  docker build -t "$JENKINS_IMAGE" -f "$REPO_DIR/Dockerfile.jenkins" "$REPO_DIR"
+  echo "      Pushing Jenkins image to registry..."
+  docker push "$JENKINS_IMAGE"
+  echo "      Jenkins image pushed."
+fi
+
 deploy jenkins  "$DOCKER_DIR/docker-compose-jenkins.yml"
 
 # ── 6. Push commit to trigger Jenkins pipeline ───────────────────────────────
