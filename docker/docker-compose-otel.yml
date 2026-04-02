@@ -1,0 +1,66 @@
+# OTel Collector Stack — Agent + Gateway (two-tier)
+# Design ref: collector-design-decisions.md §3, §4, §5, §9
+#
+# Deploy: docker stack deploy -c docker/docker-compose-otel.yml otel
+# Must be deployed before (or simultaneously with) instrumented app services.
+
+version: '3.8'
+
+configs:
+  otel_agent_config:
+    file: ./otel/agent-config.yaml
+  otel_gateway_config:
+    file: ./otel/gateway-config.yaml
+
+services:
+
+  otel-agent:
+    image: otel/opentelemetry-collector-contrib:0.149.0
+    configs:
+      - source: otel_agent_config
+        target: /etc/otelcol-contrib/config.yaml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc:/hostfs/proc:ro
+      - /sys:/hostfs/sys:ro
+    environment:
+      - HOST_PROC=/hostfs/proc
+      - HOST_SYS=/hostfs/sys
+    networks:
+      - traefik_proxy
+    deploy:
+      mode: global
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  otel-gateway:
+    image: otel/opentelemetry-collector-contrib:0.149.0
+    configs:
+      - source: otel_gateway_config
+        target: /etc/otelcol-contrib/config.yaml
+    networks:
+      - traefik_proxy
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.50'
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+networks:
+  traefik_proxy:
+    external: true

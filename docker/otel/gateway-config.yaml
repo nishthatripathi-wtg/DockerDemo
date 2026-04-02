@@ -1,0 +1,71 @@
+# OTel Collector Gateway Configuration
+# Deployment: Swarm replicated mode (1 replica)
+# Design ref: collector-design-decisions.md §6.2, §7, §8, §9
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+  postgresql:
+    endpoint: db:5432
+    username: monitor
+    password: monitor
+    databases:
+      - myuser
+    collection_interval: 30s
+    tls:
+      insecure: true
+
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: gitea
+          scrape_interval: 30s
+          static_configs:
+            - targets: ["gitea:3000"]
+        - job_name: registry
+          scrape_interval: 30s
+          static_configs:
+            - targets: ["registry:5001"]
+
+processors:
+  memory_limiter:
+    limit_mib: 400
+    spike_limit_mib: 100
+    check_interval: 1s
+
+  resourcedetection:
+    detectors: [system, docker, env]
+    system:
+      hostname_sources: [os]
+    timeout: 5s
+    override: false
+
+  batch:
+    timeout: 200ms
+    send_batch_size: 8192
+
+exporters:
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp, postgresql, prometheus]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [debug]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [debug]
+
+  telemetry:
+    logs:
+      level: info

@@ -1,0 +1,71 @@
+# OTel Collector Agent Configuration
+# Deployment: Swarm global mode (one per node)
+# Design ref: collector-design-decisions.md §6.1, §7, §9
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  faro:
+    endpoint: 0.0.0.0:8027
+
+  hostmetrics:
+    root_path: /hostfs
+    collection_interval: 30s
+    scrapers:
+      cpu:
+      memory:
+      disk:
+      filesystem:
+      load:
+      network:
+
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    collection_interval: 30s
+
+processors:
+  memory_limiter:
+    limit_mib: 200
+    spike_limit_mib: 50
+    check_interval: 1s
+
+  resourcedetection:
+    detectors: [system, docker, env]
+    system:
+      hostname_sources: [os]
+    timeout: 5s
+    override: false
+
+  batch:
+    timeout: 200ms
+    send_batch_size: 8192
+
+exporters:
+  otlp:
+    endpoint: otel-gateway:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp, faro]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlp, hostmetrics, docker_stats]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp, faro]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [otlp]
+
+  telemetry:
+    logs:
+      level: info
