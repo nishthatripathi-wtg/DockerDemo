@@ -1,0 +1,55 @@
+# Splunk Enterprise — single-node deployment for observability
+# Deploy: docker stack deploy -c docker/docker-compose-splunk.yml splunk
+#
+# Web UI: http://splunk.myapp.com (port 8000 via Traefik)
+# HEC endpoint: http://splunk:8088 (internal, used by OTel Collector)
+# Default login: admin / changeme123
+
+version: '3.8'
+
+services:
+
+  splunk:
+    image: splunk/splunk:9.4
+    hostname: splunk
+    environment:
+      SPLUNK_START_ARGS: --accept-license
+      SPLUNK_PASSWORD: changeme123
+      SPLUNK_HEC_TOKEN: otel-hec-token
+      SPLUNK_HEC_SSL: "false"
+    volumes:
+      - splunk_var:/opt/splunk/var
+      - splunk_etc:/opt/splunk/etc
+    networks:
+      - traefik_proxy
+    ports:
+      - target: 8088
+        published: 8088
+        protocol: tcp
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.splunk.rule=Host(`splunk.myapp.com`)"
+        - "traefik.http.routers.splunk.entrypoints=web"
+        - "traefik.http.services.splunk.loadbalancer.server.port=8000"
+
+networks:
+  traefik_proxy:
+    external: true
+
+volumes:
+  splunk_var:
+  splunk_etc:

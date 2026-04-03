@@ -1,0 +1,71 @@
+# OTel Collector — Backend-only configuration
+# Single collector receiving OTLP from the backend Java Agent,
+# exporting traces, metrics, and logs to Splunk HEC + debug stdout.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    limit_mib: 200
+    spike_limit_mib: 50
+    check_interval: 1s
+
+  resourcedetection:
+    detectors: [system, docker, env]
+    system:
+      hostname_sources: [os]
+    timeout: 5s
+    override: false
+
+  batch:
+    timeout: 200ms
+    send_batch_size: 8192
+
+exporters:
+  debug:
+    verbosity: basic
+
+  splunk_hec:
+    token: "otel-hec-token"
+    endpoint: "http://splunk:8088"
+    source: "otel"
+    sourcetype: "otel"
+    index: "main"
+    tls:
+      insecure_skip_verify: true
+
+  splunk_hec/logs:
+    token: "otel-hec-token"
+    endpoint: "http://splunk:8088"
+    source: "otel"
+    sourcetype: "otel_logs"
+    index: "main"
+    log_data_enabled: true
+    profiling_data_enabled: false
+    tls:
+      insecure_skip_verify: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [debug, splunk_hec]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [debug, splunk_hec]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [debug, splunk_hec/logs]
+
+  telemetry:
+    logs:
+      level: info

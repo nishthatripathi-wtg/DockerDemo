@@ -1,0 +1,41 @@
+# OTel Collector — Dev stack (single-tier)
+# Minimal collector: receives OTLP from backend → exports to Splunk HEC + debug
+#
+# Deploy order:
+#   1. docker stack deploy -c docker/docker-compose-splunk.yml splunk
+#   2. docker stack deploy -c docker/docker-compose-otel-dev.yml otel
+#   3. docker stack deploy -c docker/docker-compose-app.yml myapp --with-registry-auth
+
+version: '3.8'
+
+configs:
+  otel_dev_config:
+    file: ./otel/backend-only-config.yaml
+
+services:
+
+  otel-agent:
+    image: otel/opentelemetry-collector-contrib:0.149.0
+    configs:
+      - source: otel_dev_config
+        target: /etc/otelcol-contrib/config.yaml
+    networks:
+      - traefik_proxy
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+networks:
+  traefik_proxy:
+    external: true
