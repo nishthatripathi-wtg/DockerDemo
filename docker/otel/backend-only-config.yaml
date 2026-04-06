@@ -1,6 +1,7 @@
-# OTel Collector — Backend-only configuration
-# Single collector receiving OTLP from the backend Java Agent,
-# exporting traces, metrics, and logs to Splunk HEC + debug stdout.
+# OTel Collector — Dev configuration
+# Receives OTLP from backend Java Agent + Traefik,
+# scrapes Traefik Prometheus metrics,
+# exports traces, metrics, and logs to Splunk HEC + debug stdout.
 
 receivers:
   otlp:
@@ -9,6 +10,14 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
+
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: traefik
+          scrape_interval: 30s
+          static_configs:
+            - targets: ["traefik_traefik:8082"]
 
 processors:
   memory_limiter:
@@ -49,7 +58,7 @@ service:
       processors: [memory_limiter, resourcedetection, batch]
       exporters: [debug, splunk_hec]
     metrics:
-      receivers: [otlp]
+      receivers: [otlp, prometheus]
       processors: [memory_limiter, resourcedetection, batch]
       exporters: [debug, splunk_hec]
     logs:

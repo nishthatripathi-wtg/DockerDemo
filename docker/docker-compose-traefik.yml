@@ -25,9 +25,20 @@ services:
       - "--api.insecure=true"
       - "--log.level=INFO"
       - "--accesslog=true"
+      - "--accesslog.format=json"
+      # Prometheus metrics — kept for autoscaler compatibility
       - "--metrics.prometheus=true"
       - "--metrics.prometheus.manualRouting=true"
       - "--metrics.prometheus.addServicesLabels=true"
+      # OTLP metrics — native export to OTel Collector
+      - "--metrics.otlp=true"
+      - "--metrics.otlp.grpc.endpoint=otel_otel-agent:4317"
+      - "--metrics.otlp.grpc.insecure=true"
+      - "--metrics.otlp.addServicesLabels=true"
+      # OTLP tracing — distributed traces through Traefik
+      - "--tracing.otlp=true"
+      - "--tracing.otlp.grpc.endpoint=otel_otel-agent:4317"
+      - "--tracing.otlp.grpc.insecure=true"
     deploy:
       mode: replicated
       replicas: 1
