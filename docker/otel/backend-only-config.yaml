@@ -17,7 +17,7 @@ processors:
     check_interval: 1s
 
   resourcedetection:
-    detectors: [system, docker, env]
+    detectors: [system, env]
     system:
       hostname_sources: [os]
     timeout: 5s
@@ -33,18 +33,9 @@ exporters:
 
   splunk_hec:
     token: "otel-hec-token"
-    endpoint: "http://splunk:8088"
+    endpoint: "http://splunk_splunk:8088"
     source: "otel"
     sourcetype: "otel"
-    index: "main"
-    tls:
-      insecure_skip_verify: true
-
-  splunk_hec/logs:
-    token: "otel-hec-token"
-    endpoint: "http://splunk:8088"
-    source: "otel"
-    sourcetype: "otel_logs"
     index: "main"
     log_data_enabled: true
     profiling_data_enabled: false
@@ -64,7 +55,7 @@ service:
     logs:
       receivers: [otlp]
       processors: [memory_limiter, resourcedetection, batch]
-      exporters: [debug, splunk_hec/logs]
+      exporters: [debug, splunk_hec]
 
   telemetry:
     logs:
