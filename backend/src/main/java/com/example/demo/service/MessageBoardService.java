@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.demo.model.UserMessage;
 import com.example.demo.repository.UserAccountRepository;
 import com.example.demo.repository.UserMessageRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -23,6 +25,8 @@ import java.util.*;
 
 @Service
 public class MessageBoardService {
+
+    private static final Logger log = LoggerFactory.getLogger(MessageBoardService.class);
 
     @Autowired
     private UserMessageRepository messageRepository;
@@ -68,6 +72,7 @@ public class MessageBoardService {
         UserMessage message = messageRepository.save(
                 new UserMessage(senderName, recipientName, text, lang, null, LocalDateTime.now())
         );
+        log.info("Message sent [from={} to={} language={}]", senderName, recipientName, lang);
         return toMap(message);
     }
 
@@ -86,6 +91,7 @@ public class MessageBoardService {
         UserMessage reply = messageRepository.save(
                 new UserMessage(senderName, replyTo, text, lang, parent.getId(), LocalDateTime.now())
         );
+        log.info("Reply sent [from={} to={} parentId={} language={}]", senderName, replyTo, parent.getId(), lang);
         return toMap(reply);
     }
 
@@ -101,6 +107,7 @@ public class MessageBoardService {
         }
         message.setTranslatedLanguage(target);
 
+        log.info("Message translated [messageId={} targetLanguage={}]", messageId, target);
         return toMap(messageRepository.save(message));
     }
 
@@ -206,9 +213,11 @@ public class MessageBoardService {
         try {
             response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException ex) {
+            log.error("Translation provider request failed [url={} source={} target={}]", translationUrl, sourceLanguage, targetLanguage, ex);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "translation provider request failed", ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+            log.error("Translation provider request interrupted [url={}]", translationUrl, ex);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "translation provider request interrupted", ex);
         }
 

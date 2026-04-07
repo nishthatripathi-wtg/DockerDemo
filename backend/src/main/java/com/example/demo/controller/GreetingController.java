@@ -1,6 +1,8 @@
 package com.example.demo.controller;
 
 import com.example.demo.service.UserProfileService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +17,8 @@ import java.util.Map;
 @RestController
 @CrossOrigin(origins = {"http://172.24.191.230:4200","http://172.24.191.221:4200","http://172.24.187.57:4200"})
 public class GreetingController {
+
+    private static final Logger log = LoggerFactory.getLogger(GreetingController.class);
 
     @Autowired
     private UserProfileService userProfileService;
@@ -38,6 +42,7 @@ public class GreetingController {
 
     @GetMapping("/api/profile")
     public Map<String, Object> profile(@RequestParam String username) {
+        log.info("Profile fetch [username={}]", username);
         return userProfileService.getOrCreate(username);
     }
 
@@ -48,6 +53,7 @@ public class GreetingController {
             @RequestParam String preferredLanguage,
             @RequestParam String timezone,
             @RequestParam String theme) {
+        log.info("Profile update [username={} language={} theme={}]", username, preferredLanguage, theme);
         return userProfileService.update(username, displayName, preferredLanguage, timezone, theme);
     }
 
@@ -57,6 +63,7 @@ public class GreetingController {
             String url = c.getMetaData().getURL();
             return ResponseEntity.ok("Connected: " + url);
         } catch (Exception e) {
+            log.error("DB health check failed", e);
             return ResponseEntity.status(500).body("DB connection failed: " + e.getMessage());
         }
     }

@@ -2,6 +2,8 @@ package com.example.demo.service;
 
 import com.example.demo.model.UserAccount;
 import com.example.demo.repository.UserAccountRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -18,6 +20,8 @@ import java.util.Map;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     @Autowired
     private UserAccountRepository userAccountRepository;
@@ -42,6 +46,7 @@ public class AuthService {
         }
 
         if (userAccountRepository.findByUsername(normalizedUsername).isPresent()) {
+            log.warn("Registration failed: username already exists [username={}]", normalizedUsername);
             throw new ResponseStatusException(HttpStatus.CONFLICT, "username already exists");
         }
 
@@ -65,6 +70,7 @@ public class AuthService {
         response.put("username", normalizedUsername);
         response.put("message", "registered");
         response.put("profile", profile);
+        log.info("User registered [username={}]", normalizedUsername);
         return response;
     }
 
@@ -73,9 +79,13 @@ public class AuthService {
         String rawPassword = normalize(password, "password");
 
         UserAccount account = userAccountRepository.findByUsername(normalizedUsername)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid credentials"));
+                .orElseThrow(() -> {
+                    log.warn("Login failed: user not found [username={}]", normalizedUsername);
+                    return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid credentials");
+                });
 
         if (!passwordEncoder.matches(rawPassword, account.getPasswordHash())) {
+            log.warn("Login failed: invalid password [username={}]", normalizedUsername);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid credentials");
         }
 
@@ -86,6 +96,7 @@ public class AuthService {
         response.put("username", normalizedUsername);
         response.put("message", "logged_in");
         response.put("profile", userProfileService.getOrCreate(normalizedUsername));
+        log.info("User logged in [username={}]", normalizedUsername);
         return response;
     }
 
