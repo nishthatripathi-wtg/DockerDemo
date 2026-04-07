@@ -31,8 +31,8 @@ receivers:
 
 processors:
   memory_limiter:
-    limit_mib: 400
-    spike_limit_mib: 100
+    limit_mib: 600
+    spike_limit_mib: 150
     check_interval: 1s
 
   resourcedetection:
@@ -43,7 +43,7 @@ processors:
     override: false
 
   batch:
-    timeout: 200ms
+    timeout: 1s
     send_batch_size: 8192
 
 exporters:
