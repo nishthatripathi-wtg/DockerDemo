@@ -19,6 +19,16 @@ receivers:
           static_configs:
             - targets: ["traefik_traefik:8082"]
 
+  postgresql:
+    endpoint: myapp_db:5432
+    username: monitor
+    password: monitor
+    databases:
+      - myuser
+    collection_interval: 30s
+    tls:
+      insecure: true
+
 processors:
   memory_limiter:
     limit_mib: 200
@@ -58,7 +68,7 @@ service:
       processors: [memory_limiter, resourcedetection, batch]
       exporters: [debug, splunk_hec]
     metrics:
-      receivers: [otlp, prometheus]
+      receivers: [otlp, prometheus, postgresql]
       processors: [memory_limiter, resourcedetection, batch]
       exporters: [debug, splunk_hec]
     logs:

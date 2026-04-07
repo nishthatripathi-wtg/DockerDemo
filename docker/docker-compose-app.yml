@@ -34,7 +34,7 @@ services:
       SPRING_DATASOURCE_USERNAME: myuser
       SPRING_DATASOURCE_PASSWORD: secret
       OTEL_SERVICE_NAME: demo-backend
-      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=myapp,deployment.environment=production"
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=myapp,deployment.environment=production,host.name=demo-backend"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-agent:4317
       OTEL_EXPORTER_OTLP_PROTOCOL: grpc
       OTEL_TRACES_EXPORTER: otlp
@@ -57,9 +57,18 @@ services:
 
   db:
     image: postgres:17
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "log_min_duration_statement=200"
     environment:
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: secret
+    configs:
+      - source: postgres_init
+        target: /docker-entrypoint-initdb.d/init-monitoring.sql
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -96,3 +105,7 @@ networks:
 
 volumes:
   postgres_data:
+
+configs:
+  postgres_init:
+    file: ./postgres-init.sql
