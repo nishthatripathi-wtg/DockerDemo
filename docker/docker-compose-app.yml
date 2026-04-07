@@ -40,6 +40,7 @@ services:
       OTEL_TRACES_EXPORTER: otlp
       OTEL_METRICS_EXPORTER: otlp
       OTEL_LOGS_EXPORTER: otlp
+      OTEL_INSTRUMENTATION_LOGBACK_APPENDER_ENABLED: "true"
     deploy:
       replicas: 3
       labels:

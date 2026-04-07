@@ -26,8 +26,8 @@ services:
       replicas: 1
       resources:
         limits:
-          memory: 256M
-          cpus: '0.25'
+          memory: 512M
+          cpus: '0.50'
       placement:
         constraints:
           - node.role == manager
