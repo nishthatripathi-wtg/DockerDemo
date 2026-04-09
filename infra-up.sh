@@ -1,7 +1,7 @@
 #!/bin/bash
 # infra-up.sh — Bring up the full infrastructure stack in order.
 # Saves current VM IP to /etc/hosts, re-joins swarm if the advertise address
-# has changed, then deploys: traefik → gitea → registry → jenkins.
+# has changed, then deploys: traefik → splunk → otel → gitea → registry → jenkins.
 
 set -e
 
@@ -12,6 +12,7 @@ DOCKER_DIR="$REPO_DIR/docker"
 DOMAINS=(
   "myapp.local"
   "traefik.myapp.com"
+  "splunk.myapp.com"
   "registry.myapp.com"
   "git.myapp.com"
   "jenkins.myapp.com"
@@ -19,10 +20,10 @@ DOMAINS=(
 
 # ── 1. Detect current VM IP ───────────────────────────────────────────────────
 VM_IP=$(hostname -I | awk '{print $1}')
-echo "[1/6] Current VM IP: $VM_IP"
+echo "[1/9] Current VM IP: $VM_IP"
 
 # ── 2. Update /etc/hosts ─────────────────────────────────────────────────────
-echo "[2/6] Updating /etc/hosts..."
+echo "[2/9] Updating /etc/hosts..."
 for domain in "${DOMAINS[@]}"; do
   # Remove any existing entry for this domain
   sudo sed -i "/ $domain$/d" /etc/hosts
@@ -39,22 +40,25 @@ if [ -f /etc/cloud/templates/hosts.debian.tmpl ]; then
 fi
 
 # ── 3. Fix Swarm if advertise address has changed ─────────────────────────────
-echo "[3/6] Checking Swarm advertise address..."
+echo "[3/9] Checking Swarm advertise address..."
 SWARM_IP=$(docker info --format '{{.Swarm.NodeAddr}}' 2>/dev/null || echo "inactive")
+SWARM_REJOINED=false
 
 if [ "$SWARM_IP" = "inactive" ]; then
   echo "      Swarm not active — initialising..."
   docker swarm init --advertise-addr "$VM_IP"
+  SWARM_REJOINED=true
 elif [ "$SWARM_IP" != "$VM_IP" ]; then
   echo "      Swarm IP mismatch ($SWARM_IP vs $VM_IP) — rejoining..."
   docker swarm leave --force
   docker swarm init --advertise-addr "$VM_IP"
+  SWARM_REJOINED=true
 else
   echo "      Swarm OK ($SWARM_IP)"
 fi
 
 # ── 4. Ensure overlay network exists ─────────────────────────────────────────
-echo "[4/6] Ensuring traefik_proxy network..."
+echo "[4/9] Ensuring traefik_proxy network..."
 docker network inspect traefik_proxy > /dev/null 2>&1 \
   || docker network create --driver overlay --attachable traefik_proxy
 echo "      traefik_proxy ready"
@@ -79,14 +83,31 @@ deploy() {
   done
 }
 
-echo "[5/6] Deploying infrastructure stacks..."
+echo "[5/9] Deploying infrastructure stacks..."
 deploy traefik  "$DOCKER_DIR/docker-compose-traefik.yml"
+deploy splunk   "$DOCKER_DIR/docker-compose-splunk.yml"
+deploy otel     "$DOCKER_DIR/docker-compose-otel-dev.yml"
 deploy git      "$DOCKER_DIR/docker-compose-git.yml"
 deploy registry "$DOCKER_DIR/docker-compose-registry.yml"
 deploy jenkins  "$DOCKER_DIR/docker-compose-jenkins.yml"
 
-# ── 6. Validate registry endpoint before triggering pipeline ──────────────────
-echo "[6/7] Validating registry endpoint..."
+# ── 6. Clean Jenkins workspace after swarm rejoin ─────────────────────────────
+if [ "$SWARM_REJOINED" = true ]; then
+  echo "[6/9] Cleaning stale Jenkins workspace (swarm was re-initialised)..."
+  JENKINS_CID=$(docker ps --filter "name=jenkins" --format '{{.ID}}' | head -1)
+  if [ -n "$JENKINS_CID" ]; then
+    docker exec "$JENKINS_CID" sh -c 'rm -rf /var/jenkins_home/workspace/*' 2>/dev/null \
+      && echo "      Jenkins workspace cleaned" \
+      || echo "      ⚠  Could not clean workspace (non-fatal)"
+  else
+    echo "      ⚠  Jenkins container not found — skipping workspace cleanup"
+  fi
+else
+  echo "[6/9] Swarm unchanged — skipping Jenkins workspace cleanup"
+fi
+
+# ── 7. Validate registry endpoint before triggering pipeline ──────────────────
+echo "[7/9] Validating registry endpoint..."
 RESOLVED_IP=$(getent hosts registry.myapp.com | awk 'NR==1{print $1}')
 if [ -z "$RESOLVED_IP" ]; then
   echo "❌  registry.myapp.com does not resolve on this host."
@@ -105,8 +126,18 @@ if [ "$REG_CODE" != "200" ]; then
 fi
 echo "      Registry is reachable (HTTP 200)."
 
-# ── 7. Push commit to trigger Jenkins pipeline ───────────────────────────────
-echo "[7/7] Pushing trigger commit to Gitea..."
+# ── 8. Validate Splunk HEC ────────────────────────────────────────────────────
+echo "[8/9] Validating Splunk HEC endpoint..."
+SPLUNK_CODE=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
+  -k http://splunk_splunk:8088/services/collector/health || true)
+if [ "$SPLUNK_CODE" = "200" ]; then
+  echo "      Splunk HEC is healthy (HTTP 200)"
+else
+  echo "      ⚠  Splunk HEC returned '$SPLUNK_CODE' — may still be starting (non-fatal)"
+fi
+
+# ── 9. Push commit to trigger Jenkins pipeline ───────────────────────────────
+echo "[9/9] Pushing trigger commit to Gitea..."
 cd "$REPO_DIR"
 git add -A
 if git diff --cached --quiet; then
@@ -124,6 +155,7 @@ git push origin main
 echo ""
 echo "✅  Infrastructure is up. Jenkins pipeline triggered."
 echo "    Traefik dashboard : http://traefik.myapp.com/dashboard/"
+echo "    Splunk            : http://splunk.myapp.com"
 echo "    Gitea             : http://git.myapp.com"
 echo "    Jenkins           : http://jenkins.myapp.com"
 echo "    Registry          : http://registry.myapp.com"
