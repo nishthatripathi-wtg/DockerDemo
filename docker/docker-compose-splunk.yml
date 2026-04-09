@@ -31,7 +31,7 @@ services:
       replicas: 1
       resources:
         limits:
-          memory: 3G
+          memory: 2G
           cpus: '1.0'
       placement:
         constraints:
