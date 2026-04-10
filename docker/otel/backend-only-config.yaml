@@ -25,16 +25,11 @@ receivers:
     password: monitor
     databases:
       - myuser
-    collection_interval: 30s
+    collection_interval: 60s
     tls:
       insecure: true
 
 processors:
-  memory_limiter:
-    limit_mib: 10240
-    spike_limit_mib: 2048
-    check_interval: 1s
-
   resourcedetection:
     detectors: [system, env]
     system:
@@ -43,8 +38,9 @@ processors:
     override: false
 
   batch:
-    timeout: 5s
-    send_batch_size: 2000
+    timeout: 2s
+    send_batch_size: 500
+    send_batch_max_size: 1000
 
 exporters:
   debug:
@@ -55,6 +51,11 @@ exporters:
     endpoint: "http://splunk_splunk:8088"
     source: "otel"
     sourcetype: "otel"
+    sending_queue:
+      enabled: true
+      num_consumers: 5
+      queue_size: 5000
+    timeout: 10s
     index: "main"
     log_data_enabled: true
     tls:
@@ -64,15 +65,15 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, resourcedetection, batch]
+      processors: [resourcedetection, batch]
       exporters: [debug, splunk_hec]
     metrics:
       receivers: [otlp, prometheus, postgresql]
-      processors: [memory_limiter, resourcedetection, batch]
+      processors: [resourcedetection, batch]
       exporters: [debug, splunk_hec]
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, resourcedetection, batch]
+      processors: [resourcedetection, batch]
       exporters: [debug, splunk_hec]
 
   telemetry:

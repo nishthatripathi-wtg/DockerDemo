@@ -24,10 +24,6 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      resources:
-        limits:
-          memory: 768M
-          cpus: '0.50'
       placement:
         constraints:
           - node.role == manager
