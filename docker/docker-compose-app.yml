@@ -33,6 +33,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/myuser
       SPRING_DATASOURCE_USERNAME: myuser
       SPRING_DATASOURCE_PASSWORD: secret
+      DECORATOR_DATASOURCE_P6SPY_ENABLE_LOGGING: "true"
       OTEL_SERVICE_NAME: demo-backend
       OTEL_RESOURCE_ATTRIBUTES: "service.namespace=myapp,deployment.environment=production,host.name=demo-backend"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-agent:4317

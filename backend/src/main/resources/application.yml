@@ -11,10 +11,15 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
         hibernate:
           dialect: org.hibernate.dialect.PostgreSQLDialect
+
+decorator:
+  datasource:
+    p6spy:
+      enable-logging: true
 
 translation:
   provider:

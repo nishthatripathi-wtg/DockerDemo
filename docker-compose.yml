@@ -15,6 +15,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/myuser
       SPRING_DATASOURCE_USERNAME: myuser
       SPRING_DATASOURCE_PASSWORD: secret
+      DECORATOR_DATASOURCE_P6SPY_ENABLE_LOGGING: "true"
 
   frontend:
     image: dockerdemoweb
