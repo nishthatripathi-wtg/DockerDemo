@@ -16,11 +16,6 @@ spring:
         hibernate:
           dialect: org.hibernate.dialect.PostgreSQLDialect
 
-decorator:
-  datasource:
-    p6spy:
-      enable-logging: true
-
 translation:
   provider:
     url: https://translate.argosopentech.com/translate
