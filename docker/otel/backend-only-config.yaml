@@ -1,7 +1,7 @@
-# OTel Collector — Dev configuration
-# Receives OTLP from backend Java Agent + Traefik,
-# scrapes Traefik Prometheus metrics,
-# exports traces, metrics, and logs to Splunk HEC + debug stdout.
+# OTel Collector — Dev configuration (LGTM backend)
+# Receives OTLP from backend Java Agent,
+# scrapes Traefik Prometheus metrics + PostgreSQL,
+# exports to: Prometheus (metrics), Tempo (traces), Loki (logs), Splunk HEC (all), debug.
 
 receivers:
   otlp:
@@ -37,6 +37,15 @@ processors:
     timeout: 5s
     override: false
 
+  # Copy url.path → http.route on Traefik spans so Tempo spanmetrics
+  # can break down latency per route for the Traefik layer.
+  transform:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - set(attributes["http.route"], attributes["url.path"]) where resource.attributes["service.name"] == "traefik" and attributes["url.path"] != nil and attributes["http.route"] == nil
+
   batch:
     timeout: 2s
     send_batch_size: 500
@@ -61,20 +70,46 @@ exporters:
     tls:
       insecure_skip_verify: true
 
+  # Prometheus exporter — Prometheus scrapes this endpoint
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # Tempo — receives traces via OTLP gRPC
+  otlp/tempo:
+    endpoint: "monitoring_tempo:4317"
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 3
+      queue_size: 2000
+
+  # Loki — receives logs via OTLP HTTP
+  otlphttp/loki:
+    endpoint: "http://monitoring_loki:3100/otlp"
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 3
+      queue_size: 2000
+
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [resourcedetection, batch]
-      exporters: [debug, splunk_hec]
+      processors: [resourcedetection, transform, batch]
+      exporters: [debug, splunk_hec, otlp/tempo]
     metrics:
       receivers: [otlp, prometheus, postgresql]
       processors: [resourcedetection, batch]
-      exporters: [debug, splunk_hec]
+      exporters: [debug, splunk_hec, prometheus]
     logs:
       receivers: [otlp]
       processors: [resourcedetection, batch]
-      exporters: [debug, splunk_hec]
+      exporters: [debug, splunk_hec, otlphttp/loki]
 
   telemetry:
     logs:
