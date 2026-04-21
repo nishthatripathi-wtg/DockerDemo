@@ -1,0 +1,135 @@
+# LGTM Observability Stack (Prometheus + Tempo + Loki + Grafana)
+# Receives telemetry from OTel Collector:
+#   Metrics  → Prometheus scrapes OTel Collector's prometheus exporter
+#   Traces   → Tempo receives OTLP from OTel Collector
+#   Logs     → Loki receives OTLP from OTel Collector
+#
+# Deploy:
+#   docker stack deploy -c docker/docker-compose-grafana.yml monitoring
+#
+# Depends on: traefik stack (traefik_proxy network)
+
+version: '3.8'
+
+configs:
+  prometheus_config:
+    file: ./grafana/prometheus.yml
+  tempo_config:
+    file: ./grafana/tempo.yml
+  loki_config:
+    file: ./grafana/loki.yml
+  grafana_datasources:
+    file: ./grafana/provisioning/datasources/datasources.yml
+  grafana_dashboard_provider:
+    file: ./grafana/provisioning/dashboards/dashboards.yml
+  grafana_dashboard_latency:
+    file: ./grafana/dashboards/latency-breakdown.json
+
+volumes:
+  prometheus_data:
+  tempo_data:
+  loki_data:
+  grafana_data:
+
+services:
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=24h"
+      - "--web.enable-remote-write-receiver"
+      - "--enable-feature=exemplar-storage"
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - traefik_proxy
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    configs:
+      - source: tempo_config
+        target: /etc/tempo/tempo.yml
+    volumes:
+      - tempo_data:/var/tempo
+    networks:
+      - traefik_proxy
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+  loki:
+    image: grafana/loki:3.3.2
+    command: ["-config.file=/etc/loki/loki.yml"]
+    configs:
+      - source: loki_config
+        target: /etc/loki/loki.yml
+    volumes:
+      - loki_data:/loki
+    networks:
+      - traefik_proxy
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+  grafana:
+    image: grafana/grafana:12.4.2
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    configs:
+      - source: grafana_datasources
+        target: /etc/grafana/provisioning/datasources/datasources.yml
+      - source: grafana_dashboard_provider
+        target: /etc/grafana/provisioning/dashboards/dashboards.yml
+      - source: grafana_dashboard_latency
+        target: /var/lib/grafana/dashboards/latency-breakdown.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - traefik_proxy
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.grafana.rule=Host(`grafana.myapp.com`)"
+        - "traefik.http.routers.grafana.entrypoints=web"
+        - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+networks:
+  traefik_proxy:
+    external: true

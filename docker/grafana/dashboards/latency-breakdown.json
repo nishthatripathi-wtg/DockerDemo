@@ -1,7 +1,7 @@
 {
   "uid": "latency-breakdown",
   "title": "Traefik Trace Latency Breakdown",
-  "description": "End-to-end request latency: Traefik total vs Java processing vs Database, by route (median/P95). Excludes actuator/health routes.\n\nAssumed label names (from Tempo span_metrics):\n- service_name: traefik, demo-backend\n- span_kind: SPAN_KIND_SERVER, SPAN_KIND_CLIENT\n- http_route: set by OTel Java Agent on demo-backend spans; copied from url.path on Traefik spans via OTel Collector transform processor\n- deployment_environment: production\n- db_system: postgresql\n\nTo change the route label name, update the 'routeLabel' constant variable.\n\nLatency unit: seconds (Tempo span_metrics default). All panels use unit 's'.\nDB CLIENT spans do not carry http_route \u2014 per-route DB breakdown is aggregate only.",
+  "description": "End-to-end request latency: Traefik total vs Java processing vs Database, by route (median/P95). Excludes actuator/health routes.\n\nAssumed label names (from Tempo span_metrics):\n- service_name: traefik, demo-backend\n- span_kind: SPAN_KIND_SERVER, SPAN_KIND_CLIENT\n- http_route: set by OTel Java Agent on demo-backend spans; copied from url.path on Traefik spans via OTel Collector transform processor\n- db_system: postgresql\n- NOTE: deployment_environment is NOT available on spanmetrics; the Environment variable is kept for future use but not applied to queries.\n\nTo change the route label name, update the 'routeLabel' constant variable.\n\nLatency unit: seconds (Tempo span_metrics histogram). All panels use unit 's'.",
   "tags": [
     "latency",
     "layers",
@@ -122,7 +122,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
           "legendFormat": "Total (Traefik)",
           "instant": false,
           "format": "time_series",
@@ -134,7 +134,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
           "legendFormat": "Java Processing",
           "instant": false,
           "format": "time_series",
@@ -146,7 +146,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\"}[$__rate_interval])))",
           "legendFormat": "Database",
           "instant": false,
           "format": "time_series",
@@ -291,7 +291,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
           "legendFormat": "Total (Traefik)",
           "instant": false,
           "format": "time_series",
@@ -303,7 +303,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
           "legendFormat": "Java Processing",
           "instant": false,
           "format": "time_series",
@@ -315,7 +315,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\"}[$__rate_interval])))",
           "legendFormat": "Database",
           "instant": false,
           "format": "time_series",
@@ -473,7 +473,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (${routeLabel}) (increase(traces_spanmetrics_calls_total{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\"}[$__range]))",
+          "expr": "sum by (${routeLabel}) (increase(traces_spanmetrics_calls_total{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__range]))",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -485,7 +485,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -497,7 +497,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -509,7 +509,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -521,7 +521,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\"}[$__rate_interval])))",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -533,7 +533,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\"}[$__rate_interval])))",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -821,7 +821,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -833,7 +833,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -845,7 +845,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\", deployment_environment=~\"$environment\"}[$__rate_interval]))) or vector(0)",
+          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\"}[$__rate_interval]))) or vector(0)",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -986,7 +986,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\", le=\"0.004\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.004\"}[$__range]))",
           "legendFormat": "<4ms",
           "instant": true,
           "format": "table",
@@ -998,7 +998,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\", le=\"0.016\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\", le=\"0.004\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.016\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.004\"}[$__range]))",
           "legendFormat": "4-16ms",
           "instant": true,
           "format": "table",
@@ -1010,7 +1010,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\", le=\"0.064\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\", le=\"0.016\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.064\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.016\"}[$__range]))",
           "legendFormat": "16-64ms",
           "instant": true,
           "format": "table",
@@ -1022,7 +1022,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\", le=\"0.256\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\", le=\"0.064\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.256\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.064\"}[$__range]))",
           "legendFormat": "64-256ms",
           "instant": true,
           "format": "table",
@@ -1034,7 +1034,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\", le=\"1.024\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\", le=\"0.256\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"1.024\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.256\"}[$__range]))",
           "legendFormat": "256ms-1s",
           "instant": true,
           "format": "table",
@@ -1046,7 +1046,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\", le=\"+Inf\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", deployment_environment=~\"$environment\", le=\"1.024\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"+Inf\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"1.024\"}[$__range]))",
           "legendFormat": ">1s",
           "instant": true,
           "format": "table",
