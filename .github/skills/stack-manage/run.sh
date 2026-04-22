@@ -2,7 +2,7 @@
 # run.sh — Start, stop, restart, or inspect individual Docker Swarm stacks.
 # Usage: bash run.sh <action> <stack|all>
 #   action: start | stop | restart | status | logs
-#   stack:  traefik | splunk | otel | git | registry | jenkins | myapp | all
+#   stack:  traefik | splunk | monitoring | otel | git | registry | jenkins | myapp | all
 
 set -e
 
@@ -16,6 +16,7 @@ STACK="${2:-all}"
 declare -A COMPOSE_MAP=(
   [traefik]="$DOCKER_DIR/docker-compose-traefik.yml"
   [splunk]="$DOCKER_DIR/docker-compose-splunk.yml"
+  [monitoring]="$DOCKER_DIR/docker-compose-grafana.yml"
   [otel]="$DOCKER_DIR/docker-compose-otel-dev.yml"
   [git]="$DOCKER_DIR/docker-compose-git.yml"
   [registry]="$DOCKER_DIR/docker-compose-registry.yml"
@@ -24,7 +25,7 @@ declare -A COMPOSE_MAP=(
 )
 
 # Ordered deploy sequence (dependency order)
-DEPLOY_ORDER=(traefik splunk otel git registry jenkins myapp)
+DEPLOY_ORDER=(traefik splunk monitoring otel git registry jenkins myapp)
 
 # ── Helper functions ──────────────────────────────────────────────────────────
 is_healthy_stack() {

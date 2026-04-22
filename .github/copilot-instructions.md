@@ -87,7 +87,8 @@ docker stack rm otel && sleep 5 && docker stack deploy -c docker/docker-compose-
 ```bash
 docker stack deploy -c docker/docker-compose-traefik.yml traefik     # 1st — creates traefik_proxy network
 docker stack deploy -c docker/docker-compose-splunk.yml splunk       # Splunk for log/metric storage
-docker stack deploy -c docker/docker-compose-otel-dev.yml otel       # OTel Collector
+docker stack deploy -c docker/docker-compose-grafana.yml monitoring  # Prometheus + Tempo + Loki + Grafana (LGTM)
+docker stack deploy -c docker/docker-compose-otel-dev.yml otel       # OTel Collector (exports to Splunk + LGTM)
 docker stack deploy -c docker/docker-compose-app.yml myapp --with-registry-auth  # App stack
 ```
 
@@ -199,6 +200,8 @@ index=main source=otel | head 1000 | fieldsummary | where match(field, "metric_n
 | App | `http://myapp.local` | — |
 | Traefik dashboard | `http://traefik.myapp.com/dashboard/` | — |
 | Splunk | `http://splunk.myapp.com` | admin / changeme123 |
+| Grafana | `http://grafana.myapp.com` | admin / admin |
+| InfluxDB | ~~removed~~ — replaced by LGTM stack | — |
 | Jenkins | `http://jenkins.myapp.com` | admin / admin |
 | Gitea | `http://git.myapp.com` | admin / adminadmin |
 | Registry | `http://registry.myapp.com` | — |
@@ -211,6 +214,7 @@ index=main source=otel | head 1000 | fieldsummary | where match(field, "metric_n
 | `docker-compose-swarm.yml` | Swarm stack with Traefik (no autoscaler, no OTel) |
 | `docker/docker-compose-app.yml` | Full production app stack (backend + frontend + db + autoscaler) |
 | `docker/docker-compose-traefik.yml` | Traefik stack with OTLP + Prometheus dual-emit |
+| `docker/docker-compose-grafana.yml` | LGTM stack: Prometheus + Tempo + Loki + Grafana (observability) |
 | `docker/docker-compose-otel-dev.yml` | Dev OTel Collector (single-tier, deploys `backend-only-config.yaml`) |
 | `docker/docker-compose-otel.yml` | Production OTel (agent+gateway two-tier) |
 | `docker/docker-compose-splunk.yml` | Splunk Enterprise 9.4 |

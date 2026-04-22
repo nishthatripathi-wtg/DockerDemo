@@ -10,10 +10,11 @@ version: '3.8'
 services:
 
   splunk:
-    image: splunk/splunk:9.4
+    image: splunk/splunk:latest
     hostname: splunk
     environment:
       SPLUNK_START_ARGS: --accept-license
+      SPLUNK_GENERAL_TERMS: --accept-sgt-current-at-splunk-com
       SPLUNK_PASSWORD: changeme123
       SPLUNK_HEC_TOKEN: otel-hec-token
       SPLUNK_HEC_SSL: "false"

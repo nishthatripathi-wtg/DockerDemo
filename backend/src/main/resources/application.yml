@@ -21,3 +21,10 @@ translation:
     url: https://translate.argosopentech.com/translate
     api-key: ""
     timeout-ms: 5000
+
+activemq:
+  broker-url: ${ACTIVEMQ_BROKER_URL:tcp://localhost:61616}
+
+camel:
+  springboot:
+    name: demo-backend-camel

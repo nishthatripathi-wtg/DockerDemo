@@ -1,7 +1,7 @@
 #!/bin/bash
 # run.sh — Bring up the full infrastructure stack in order.
 # Updates /etc/hosts, re-joins swarm if IP changed, deploys:
-# traefik → splunk → otel → gitea → registry → jenkins.
+# traefik → splunk → monitoring → otel → gitea → registry → jenkins.
 
 set -e
 
@@ -16,6 +16,8 @@ DOMAINS=(
   "registry.myapp.com"
   "git.myapp.com"
   "jenkins.myapp.com"
+  "grafana.myapp.com"
+  "influxdb.myapp.com"
 )
 
 # ── 1. Detect current VM IP ───────────────────────────────────────────────────
@@ -105,6 +107,7 @@ deploy() {
 echo "[5/8] Deploying infrastructure stacks..."
 deploy traefik  "$DOCKER_DIR/docker-compose-traefik.yml"
 deploy splunk   "$DOCKER_DIR/docker-compose-splunk.yml"
+deploy monitoring "$DOCKER_DIR/docker-compose-grafana.yml"
 deploy otel     "$DOCKER_DIR/docker-compose-otel-dev.yml"
 deploy git      "$DOCKER_DIR/docker-compose-git.yml"
 deploy registry "$DOCKER_DIR/docker-compose-registry.yml"
@@ -202,3 +205,5 @@ echo "    Splunk            : http://splunk.myapp.com"
 echo "    Gitea             : http://git.myapp.com"
 echo "    Jenkins           : http://jenkins.myapp.com"
 echo "    Registry          : http://registry.myapp.com"
+echo "    Grafana           : http://grafana.myapp.com"
+echo "    InfluxDB          : http://influxdb.myapp.com"

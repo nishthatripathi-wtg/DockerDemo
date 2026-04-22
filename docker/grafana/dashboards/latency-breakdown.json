@@ -1,7 +1,7 @@
 {
   "uid": "latency-breakdown",
   "title": "Traefik Trace Latency Breakdown",
-  "description": "End-to-end request latency: Traefik total vs Java processing vs Database, by route (median/P95). Excludes actuator/health routes.\n\nAssumed label names (from Tempo span_metrics):\n- service_name: traefik, demo-backend\n- span_kind: SPAN_KIND_SERVER, SPAN_KIND_CLIENT\n- http_route: set by OTel Java Agent on demo-backend spans; copied from url.path on Traefik spans via OTel Collector transform processor\n- db_system: postgresql\n- NOTE: deployment_environment is NOT available on spanmetrics; the Environment variable is kept for future use but not applied to queries.\n\nTo change the route label name, update the 'routeLabel' constant variable.\n\nLatency unit: seconds (Tempo span_metrics histogram). All panels use unit 's'.",
+  "description": "End-to-end request latency: Traefik total vs Java processing vs Database, by route (median/P95). Excludes actuator/health routes and Grafana internal API traffic.\n\nAssumed label names (from Tempo span_metrics):\n- service_name: traefik, demo-backend\n- span_kind: SPAN_KIND_SERVER, SPAN_KIND_CLIENT\n- http_route: set by OTel Java Agent on demo-backend spans; copied from url.path on Traefik spans via OTel Collector transform processor\n- db_system: postgresql\n- NOTE: deployment_environment is NOT available on spanmetrics; the Environment variable is kept for future use.\n\nLatency unit: milliseconds (queries multiply histogram_quantile seconds \u00d7 1000). All panels use unit 'ms'.",
   "tags": [
     "latency",
     "layers",
@@ -29,6 +29,28 @@
   "templating": {
     "list": [
       {
+        "name": "javaService",
+        "type": "constant",
+        "label": "Java Service",
+        "query": "demo-backend",
+        "current": {
+          "text": "demo-backend",
+          "value": "demo-backend"
+        },
+        "hide": 2
+      },
+      {
+        "name": "routeLabel",
+        "type": "constant",
+        "label": "Route Label",
+        "query": "http_route",
+        "current": {
+          "text": "http_route",
+          "value": "http_route"
+        },
+        "hide": 2
+      },
+      {
         "name": "environment",
         "type": "query",
         "label": "Environment",
@@ -54,36 +76,15 @@
           "uid": "prometheus"
         },
         "query": "label_values(traces_spanmetrics_calls_total{span_kind=\"SPAN_KIND_SERVER\", service_name=~\"$javaService\"}, http_route)",
-        "regex": "/^(?!\\/(actuator|health|metrics|\\*)).*/",
+        "regex": "/^(?!\\/(actuator|health|metrics|\\*|public|d|avatar|apis|v2|explore))(?!\\/api\\/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)\\/).*/",
         "multi": true,
         "includeAll": true,
         "current": {
           "text": "All",
           "value": "$__all"
         },
-        "refresh": 2
-      },
-      {
-        "name": "javaService",
-        "type": "constant",
-        "label": "Java Service",
-        "query": "demo-backend",
-        "current": {
-          "text": "demo-backend",
-          "value": "demo-backend"
-        },
-        "hide": 2
-      },
-      {
-        "name": "routeLabel",
-        "type": "constant",
-        "label": "Route Label",
-        "query": "http_route",
-        "current": {
-          "text": "http_route",
-          "value": "http_route"
-        },
-        "hide": 2
+        "refresh": 2,
+        "allValue": ".*"
       }
     ]
   },
@@ -122,7 +123,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000",
           "legendFormat": "Total (Traefik)",
           "instant": false,
           "format": "time_series",
@@ -134,7 +135,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000",
           "legendFormat": "Java Processing",
           "instant": false,
           "format": "time_series",
@@ -146,7 +147,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.5, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000",
           "legendFormat": "Database",
           "instant": false,
           "format": "time_series",
@@ -170,16 +171,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
-          "decimals": 3,
+          "unit": "ms",
+          "decimals": 2,
           "noValue": "\u2014",
           "custom": {
             "lineWidth": 2,
             "fillOpacity": 10,
             "spanNulls": true,
             "drawStyle": "line",
-            "pointSize": 5
-          }
+            "pointSize": 5,
+            "axisSoftMin": 0
+          },
+          "min": 0
         },
         "overrides": [
           {
@@ -291,7 +294,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000",
           "legendFormat": "Total (Traefik)",
           "instant": false,
           "format": "time_series",
@@ -303,7 +306,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000",
           "legendFormat": "Java Processing",
           "instant": false,
           "format": "time_series",
@@ -315,7 +318,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000",
           "legendFormat": "Database",
           "instant": false,
           "format": "time_series",
@@ -339,16 +342,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
-          "decimals": 3,
+          "unit": "ms",
+          "decimals": 2,
           "noValue": "\u2014",
           "custom": {
             "lineWidth": 2,
             "fillOpacity": 10,
             "spanNulls": true,
             "drawStyle": "line",
-            "pointSize": 5
-          }
+            "pointSize": 5,
+            "axisSoftMin": 0
+          },
+          "min": 0
         },
         "overrides": [
           {
@@ -473,7 +478,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (${routeLabel}) (increase(traces_spanmetrics_calls_total{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__range]))",
+          "expr": "sum by (${routeLabel}) (increase(traces_spanmetrics_calls_total{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}!=\"\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range]))",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -485,7 +490,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}!=\"\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -497,7 +502,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.95, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}!=\"\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -509,7 +514,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}!=\"\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -521,7 +526,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!=\"\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -533,7 +538,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.95, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!=\"\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -639,11 +644,11 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "s"
+                "value": "ms"
               },
               {
                 "id": "decimals",
-                "value": 3
+                "value": 2
               }
             ]
           },
@@ -655,11 +660,11 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "s"
+                "value": "ms"
               },
               {
                 "id": "decimals",
-                "value": 3
+                "value": 2
               },
               {
                 "id": "thresholds",
@@ -672,11 +677,11 @@
                     },
                     {
                       "color": "yellow",
-                      "value": 100
+                      "value": 200
                     },
                     {
                       "color": "red",
-                      "value": 500
+                      "value": 1000
                     }
                   ]
                 }
@@ -695,11 +700,11 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "s"
+                "value": "ms"
               },
               {
                 "id": "decimals",
-                "value": 3
+                "value": 2
               }
             ]
           },
@@ -711,11 +716,11 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "s"
+                "value": "ms"
               },
               {
                 "id": "decimals",
-                "value": 3
+                "value": 2
               }
             ]
           },
@@ -727,11 +732,11 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "s"
+                "value": "ms"
               },
               {
                 "id": "decimals",
-                "value": 3
+                "value": 2
               }
             ]
           },
@@ -743,11 +748,11 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "s"
+                "value": "ms"
               },
               {
                 "id": "decimals",
-                "value": 3
+                "value": 2
               },
               {
                 "id": "thresholds",
@@ -821,7 +826,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
+          "expr": "topk(10, (histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}!=\"\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000)",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -833,7 +838,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\"}[$__rate_interval])))",
+          "expr": "topk(10, (histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}!=\"\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval])))) * 1000)",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -845,7 +850,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\"}[$__rate_interval]))) or vector(0)",
+          "expr": "topk(10, (histogram_quantile(0.5, sum by (le, ${routeLabel}) (rate(traces_spanmetrics_latency_bucket{service_name=~\"$javaService\", span_kind=\"SPAN_KIND_CLIENT\", db_system!=\"\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", ${routeLabel}!=\"\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__rate_interval]))) or vector(0)) * 1000)",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -857,6 +862,21 @@
           "id": "seriesToColumns",
           "options": {
             "byField": "http_route"
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "fieldName": "Value #total",
+                "config": {
+                  "id": "isNotNull"
+                }
+              }
+            ],
+            "type": "include",
+            "match": "all"
           }
         },
         {
@@ -898,8 +918,8 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
-          "decimals": 3,
+          "unit": "ms",
+          "decimals": 2,
           "noValue": "0"
         },
         "overrides": [
@@ -962,7 +982,8 @@
         },
         "tooltip": {
           "mode": "multi"
-        }
+        },
+        "xTickLabelMaxLength": 40
       }
     },
     {
@@ -986,7 +1007,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.004\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.004\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range]))",
           "legendFormat": "<4ms",
           "instant": true,
           "format": "table",
@@ -998,7 +1019,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.016\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.004\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.016\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.004\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range]))",
           "legendFormat": "4-16ms",
           "instant": true,
           "format": "table",
@@ -1010,7 +1031,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.064\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.016\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.064\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.016\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range]))",
           "legendFormat": "16-64ms",
           "instant": true,
           "format": "table",
@@ -1022,7 +1043,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.256\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.064\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.256\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.064\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range]))",
           "legendFormat": "64-256ms",
           "instant": true,
           "format": "table",
@@ -1034,7 +1055,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"1.024\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.256\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"1.024\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"0.256\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range]))",
           "legendFormat": "256ms-1s",
           "instant": true,
           "format": "table",
@@ -1046,7 +1067,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"+Inf\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"1.024\"}[$__range]))",
+          "expr": "sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"+Inf\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range])) - sum(increase(traces_spanmetrics_latency_bucket{service_name=\"traefik\", span_kind=\"SPAN_KIND_SERVER\", ${routeLabel}=~\"$endpoints\", ${routeLabel}!~\"^/(actuator|health|metrics).*\", le=\"1.024\", ${routeLabel}!~\"/api/(ds|annotations|prometheus|plugins|dashboards|frontend|live|folders|datasources|search|user|org)/.*\", ${routeLabel}!~\"/public/.*|/d/.*|/avatar/.*|/apis/.*|/v2/.*|/explore.*\"}[$__range]))",
           "legendFormat": ">1s",
           "instant": true,
           "format": "table",
@@ -1063,7 +1084,80 @@
             "mode": "palette-classic"
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "<4ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "4\u201316ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #C"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "16\u201364ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #D"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "64\u2013256ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #E"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "256ms\u20131s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #F"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": ">1s"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "orientation": "vertical",

@@ -3,9 +3,12 @@ package com.example.demo.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.demo.dto.NotificationEvent;
+import com.example.demo.dto.TranslationRequest;
 import com.example.demo.model.UserMessage;
 import com.example.demo.repository.UserAccountRepository;
 import com.example.demo.repository.UserMessageRepository;
+import org.apache.camel.ProducerTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +39,9 @@ public class MessageBoardService {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private ProducerTemplate producerTemplate;
 
     @Value("${translation.provider.url}")
     private String translationUrl;
@@ -73,6 +79,18 @@ public class MessageBoardService {
                 new UserMessage(senderName, recipientName, text, lang, null, LocalDateTime.now())
         );
         log.info("Message sent [from={} to={} language={}]", senderName, recipientName, lang);
+
+        // Fire-and-forget JMS notification to Camel route
+        try {
+            NotificationEvent event = new NotificationEvent(
+                    "message_sent", senderName, recipientName,
+                    message.getId(), text, lang, LocalDateTime.now());
+            producerTemplate.sendBody("jms:queue:message.notifications",
+                    objectMapper.writeValueAsString(event));
+        } catch (Exception ex) {
+            log.warn("Failed to send JMS notification [messageId={}]: {}", message.getId(), ex.getMessage());
+        }
+
         return toMap(message);
     }
 
@@ -100,15 +118,41 @@ public class MessageBoardService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "message not found"));
 
         String target = normalizeLanguage(targetLanguage);
+
+        // Same-language: skip JMS, update directly
         if (target.equals(message.getLanguage())) {
             message.setTranslatedContent(message.getContent());
-        } else {
-            message.setTranslatedContent(translateWithProvider(message.getContent(), message.getLanguage(), target));
+            message.setTranslatedLanguage(target);
+            log.info("Message translated (same language) [messageId={} targetLanguage={}]", messageId, target);
+            return toMap(messageRepository.save(message));
         }
-        message.setTranslatedLanguage(target);
 
-        log.info("Message translated [messageId={} targetLanguage={}]", messageId, target);
-        return toMap(messageRepository.save(message));
+        // Send JMS request-reply to Camel TranslationRoute
+        TranslationRequest request = new TranslationRequest(
+                messageId, target, message.getContent(), message.getLanguage());
+        try {
+            String requestJson = objectMapper.writeValueAsString(request);
+            String responseJson = producerTemplate.requestBody(
+                    "jms:queue:translation.requests?requestTimeout=10000",
+                    requestJson, String.class);
+
+            JsonNode responseNode = objectMapper.readTree(responseJson);
+            if (responseNode.path("error").asBoolean(false)) {
+                String errorMsg = responseNode.path("message").asText("translation failed");
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, errorMsg);
+            }
+
+            // Reload the message since Camel route updated it
+            message = messageRepository.findById(messageId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "message not found"));
+            log.info("Message translated via Camel [messageId={} targetLanguage={}]", messageId, target);
+            return toMap(message);
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("JMS translation request failed [messageId={} targetLanguage={}]", messageId, target, ex);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "translation request failed: " + ex.getMessage());
+        }
     }
 
     public Map<String, Object> translateForUser(Long messageId, String username, String targetLanguage) {
@@ -183,6 +227,29 @@ public class MessageBoardService {
             items.add(row);
         }
         return items;
+    }
+
+    /**
+     * Called by Camel TranslationRoute — performs the actual translation and updates DB.
+     */
+    public Map<String, Object> performTranslation(TranslationRequest request) {
+        UserMessage message = messageRepository.findById(request.getMessageId())
+                .orElseThrow(() -> new RuntimeException("message not found: " + request.getMessageId()));
+
+        String translated = translateWithProvider(
+                request.getContent(), request.getSourceLanguage(), request.getTargetLanguage());
+        message.setTranslatedContent(translated);
+        message.setTranslatedLanguage(request.getTargetLanguage());
+        messageRepository.save(message);
+
+        log.info("Camel translation completed [messageId={} from={} to={}]",
+                request.getMessageId(), request.getSourceLanguage(), request.getTargetLanguage());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("messageId", request.getMessageId());
+        result.put("translatedContent", translated);
+        result.put("targetLanguage", request.getTargetLanguage());
+        return result;
     }
 
     private String translateWithProvider(String text, String sourceLanguage, String targetLanguage) {
