@@ -1,0 +1,69 @@
+apiVersion: 1
+
+deleteDatasources:
+  - name: InfluxDB-Metrics
+    orgId: 1
+  - name: InfluxDB-Traces
+    orgId: 1
+  - name: InfluxDB-Logs
+    orgId: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://monitoring_prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      exemplarTraceIdDestinations:
+        - name: traceID
+          datasourceUid: tempo
+
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://monitoring_tempo:3200
+    editable: true
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        filterByTraceID: true
+        filterBySpanID: false
+        customQuery: true
+        query: '{service_name="${__span.tags.service.name}"} | trace_id = `${__trace.traceId}`'
+      tracesToMetrics:
+        datasourceUid: prometheus
+        spanStartTimeShift: "-1h"
+        spanEndTimeShift: "1h"
+        tags:
+          - key: service.name
+            value: service_name
+        queries:
+          - name: Request rate
+            query: 'sum(rate(http_server_request_duration_seconds_count{service_name="${__tags.service_name}"}[5m]))'
+          - name: Error rate
+            query: 'sum(rate(http_server_request_duration_seconds_count{service_name="${__tags.service_name}",http_response_status_code=~"5.."}[5m]))'
+      nodeGraph:
+        enabled: true
+      serviceMap:
+        datasourceUid: prometheus
+      lokiSearch:
+        datasourceUid: loki
+
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://monitoring_loki:3100
+    editable: true
+    jsonData:
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: "trace_id=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+          urlDisplayLabel: View Trace

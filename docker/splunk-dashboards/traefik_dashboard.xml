@@ -1,0 +1,209 @@
+<dashboard version="1.1" theme="dark">
+  <label>Traefik Service Dashboard</label>
+  <description>Request rates, latency, and error metrics from Traefik via OTel</description>
+
+  <fieldset submitButton="false">
+    <input type="time" token="timeRange" searchWhenChanged="true">
+      <label>Time Range</label>
+      <default>
+        <earliest>-30m@m</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+
+  <!-- Row 1: KPIs -->
+  <row>
+    <panel>
+      <title>Total Requests (Period)</title>
+      <single>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_service_requests_total"=* | stats sum(metric_name:traefik_service_requests_total) AS total_requests</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="colorMode">block</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Error Requests (4xx + 5xx)</title>
+      <single>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_service_requests_total"=* (code>=400) | stats sum(metric_name:traefik_service_requests_total) AS error_requests</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="colorMode">block</option>
+        <option name="rangeColors">["0x53a051","0xf8be34","0xdc4e41"]</option>
+        <option name="rangeValues">[0,100]</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Active Services</title>
+      <single>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_service_requests_total"=* | stats dc(service) AS active_services</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Open Connections</title>
+      <single>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_open_connections"=* | stats latest(metric_name:traefik_open_connections) AS open_conns</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+  </row>
+
+  <!-- Row 2: Requests Per Minute -->
+  <row>
+    <panel>
+      <title>Requests Per Minute — All Services</title>
+      <chart>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_service_requests_total"=* | timechart span=1m sum(metric_name:traefik_service_requests_total) AS RPM</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Requests / min</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- Row 3: RPM by Service + by Status Code -->
+  <row>
+    <panel>
+      <title>Requests Per Minute — By Service</title>
+      <chart>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_service_requests_total"=* | timechart span=1m sum(metric_name:traefik_service_requests_total) BY service</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.axisTitleY.text">Requests / min</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Requests Per Minute — By Status Code</title>
+      <chart>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_service_requests_total"=* | timechart span=1m sum(metric_name:traefik_service_requests_total) BY code</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.axisTitleY.text">Requests / min</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- Row 4: Error Rate + Request Duration -->
+  <row>
+    <panel>
+      <title>Error Rate % By Service (4xx + 5xx)</title>
+      <chart>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_service_requests_total"=*
+| eval is_error=if(code>=400, metric_name:traefik_service_requests_total, 0)
+| timechart span=1m sum(is_error) AS errors, sum(metric_name:traefik_service_requests_total) AS total
+| eval error_pct=round((errors/total)*100, 2)
+| fields _time error_pct</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleY.text">Error %</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Avg Request Duration (seconds) — By Service</title>
+      <chart>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_service_request_duration_seconds_sum"=*
+| timechart span=1m avg(metric_name:traefik_service_request_duration_seconds_sum) BY service</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleY.text">Duration (s)</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- Row 5: Bytes + Method breakdown -->
+  <row>
+    <panel>
+      <title>Response Bytes Per Minute — By Service</title>
+      <chart>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_service_responses_bytes_total"=* | timechart span=1m sum(metric_name:traefik_service_responses_bytes_total) BY service</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.axisTitleY.text">Bytes / min</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Requests By HTTP Method</title>
+      <chart>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_service_requests_total"=* | stats sum(metric_name:traefik_service_requests_total) BY method</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="charting.chart">pie</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- Row 6: Service breakdown table -->
+  <row>
+    <panel>
+      <title>Service Request Breakdown</title>
+      <table>
+        <search>
+          <query>index=main sourcetype=otel "metric_name:traefik_service_requests_total"=*
+| stats sum(metric_name:traefik_service_requests_total) AS total_requests,
+        sum(eval(if(code>=400, metric_name:traefik_service_requests_total, 0))) AS errors,
+        dc(code) AS status_codes,
+        dc(method) AS methods
+  BY service
+| eval error_pct=round((errors/total_requests)*100, 2)."%"
+| sort -total_requests
+| rename service AS "Service", total_requests AS "Total Requests", errors AS "Errors", error_pct AS "Error %", status_codes AS "Status Codes", methods AS "Methods"</query>
+          <earliest>$timeRange.earliest$</earliest>
+          <latest>$timeRange.latest$</latest>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="count">20</option>
+      </table>
+    </panel>
+  </row>
+
+</dashboard>
