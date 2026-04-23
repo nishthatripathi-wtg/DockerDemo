@@ -84,7 +84,7 @@ public class MessageBoardService {
         try {
             NotificationEvent event = new NotificationEvent(
                     "message_sent", senderName, recipientName,
-                    message.getId(), text, lang, LocalDateTime.now());
+                    message.getId(), text, lang, LocalDateTime.now().toString());
             producerTemplate.sendBody("jms:queue:message.notifications",
                     objectMapper.writeValueAsString(event));
         } catch (Exception ex) {

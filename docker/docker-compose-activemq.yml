@@ -5,7 +5,9 @@ services:
   activemq:
     image: apache/activemq-classic:5.18.6
     networks:
-      - traefik_proxy
+      traefik_proxy:
+        aliases:
+          - activemq-broker
     volumes:
       - activemq_data:/opt/apache-activemq/data
     deploy:

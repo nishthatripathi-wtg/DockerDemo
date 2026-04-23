@@ -24,6 +24,8 @@ configs:
     file: ./grafana/provisioning/dashboards/dashboards.yml
   grafana_dashboard_latency:
     file: ./grafana/dashboards/latency-breakdown.json
+  grafana_dashboard_camel:
+    file: ./grafana/dashboards/camel-routes.json
 
 volumes:
   prometheus_data:
@@ -111,6 +113,8 @@ services:
         target: /etc/grafana/provisioning/dashboards/dashboards.yml
       - source: grafana_dashboard_latency
         target: /var/lib/grafana/dashboards/latency-breakdown.json
+      - source: grafana_dashboard_camel
+        target: /var/lib/grafana/dashboards/camel-routes.json
     volumes:
       - grafana_data:/var/lib/grafana
     networks:

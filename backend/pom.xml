@@ -87,6 +87,12 @@
             <artifactId>camel-micrometer-starter</artifactId>
         </dependency>
 
+        <!-- Actuator provides MeterRegistry for camel-micrometer metrics -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- ActiveMQ JMS client (Jakarta namespace for Spring Boot 3.x) -->
         <dependency>
             <groupId>org.apache.activemq</groupId>

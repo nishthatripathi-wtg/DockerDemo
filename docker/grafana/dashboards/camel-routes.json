@@ -1,0 +1,504 @@
+{
+  "uid": "camel-routes",
+  "title": "Apache Camel Routes",
+  "description": "Camel-native metrics: exchange throughput, route processing latency, inflight exchanges, failures, JMS endpoint timing.\n\nData sources:\n- Prometheus: camel_* Micrometer metrics (via OTel agent bridge)\n- Loki: Camel route logs (AUDIT, processing, errors, DLQ)\n- Tempo: Camel + JMS distributed traces",
+  "tags": ["camel", "jms", "messaging", "activemq"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "style": "dark",
+  "schemaVersion": 39,
+  "version": 2,
+  "links": [
+    {
+      "title": "Latency Breakdown",
+      "type": "link",
+      "url": "/d/latency-breakdown/traefik-trace-latency-breakdown",
+      "tooltip": "Request latency by layer"
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "constant",
+        "label": "Service",
+        "query": "demo-backend",
+        "current": { "text": "demo-backend", "value": "demo-backend" },
+        "hide": 2
+      },
+      {
+        "name": "camelContext",
+        "type": "constant",
+        "label": "Camel Context",
+        "query": "demo-backend-camel",
+        "current": { "text": "demo-backend-camel", "value": "demo-backend-camel" },
+        "hide": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Routes Running",
+      "description": "Number of active Camel routes",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": { "graphMode": "none", "colorMode": "background" },
+      "targets": [
+        {
+          "expr": "max(camel_routes_running{camelContext=\"$camelContext\"})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Total Exchanges",
+      "description": "Total Camel exchanges processed across all routes",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 5, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [ { "color": "blue", "value": null } ]
+          }
+        }
+      },
+      "options": { "graphMode": "area", "colorMode": "value" },
+      "targets": [
+        {
+          "expr": "sum(camel_exchanges_total{camelContext=\"$camelContext\"})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Succeeded",
+      "description": "Total successful exchanges across all routes",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 5, "x": 9, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [ { "color": "green", "value": null } ]
+          }
+        }
+      },
+      "options": { "graphMode": "area", "colorMode": "value" },
+      "targets": [
+        {
+          "expr": "sum(camel_exchanges_succeeded_total{camelContext=\"$camelContext\"})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Failures Handled",
+      "description": "Exchanges that failed but were handled by error handlers / DLQ",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 5, "x": 14, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      },
+      "options": { "graphMode": "area", "colorMode": "value" },
+      "targets": [
+        {
+          "expr": "sum(camel_exchanges_failures_handled_total{camelContext=\"$camelContext\"}) or vector(0)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Inflight",
+      "description": "Exchanges currently being processed",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        }
+      },
+      "options": { "graphMode": "area", "colorMode": "background" },
+      "targets": [
+        {
+          "expr": "sum(camel_exchanges_inflight{camelContext=\"$camelContext\"}) or vector(0)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Exchange Rate by Route",
+      "description": "Camel exchanges per second, broken down by routeId",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "expr": "sum by (routeId) (rate(camel_exchanges_total{camelContext=\"$camelContext\"}[5m]))",
+          "legendFormat": "{{routeId}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Success vs Failure Rate by Route",
+      "description": "Succeeded and failed exchange rates per route",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "expr": "sum by (routeId) (rate(camel_exchanges_succeeded_total{camelContext=\"$camelContext\"}[5m]))",
+          "legendFormat": "{{routeId}} succeeded",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (routeId) (rate(camel_exchanges_failures_handled_total{camelContext=\"$camelContext\"}[5m]))",
+          "legendFormat": "{{routeId}} failures",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Route Processing Time (P95)",
+      "description": "95th percentile processing time per Camel route (from MicrometerRoutePolicyService)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, routeId) (rate(camel_route_policy_seconds_bucket{camelContext=\"$camelContext\"}[5m])))",
+          "legendFormat": "{{routeId}} p95",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, routeId) (rate(camel_route_policy_seconds_bucket{camelContext=\"$camelContext\"}[5m])))",
+          "legendFormat": "{{routeId}} p50",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Endpoint Event Latency (P95)",
+      "description": "95th percentile latency per Camel endpoint (JMS queues, direct routes). From MicrometerEventNotifierService.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, endpointName) (rate(camel_exchange_event_notifier_seconds_bucket{camelContext=\"$camelContext\", eventType=\"ExchangeCompletedEvent\"}[5m])))",
+          "legendFormat": "{{endpointName}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Max Route Processing Time",
+      "description": "Maximum processing time ever recorded per route (resets on restart)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 30,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "expr": "max by (routeId) (camel_route_policy_max_seconds{camelContext=\"$camelContext\"})",
+          "legendFormat": "{{routeId}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Exchanges by Route (Total)",
+      "description": "Breakdown of total exchanges per route as a pie chart",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] },
+        "tooltip": { "mode": "single" },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "targets": [
+        {
+          "expr": "sum by (routeId) (camel_exchanges_total{camelContext=\"$camelContext\"})",
+          "legendFormat": "{{routeId}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Inflight Exchanges Over Time",
+      "description": "Number of exchanges currently being processed, per route",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "expr": "sum by (routeId) (camel_exchanges_inflight{camelContext=\"$camelContext\"})",
+          "legendFormat": "{{routeId}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Camel Route Activity (Logs)",
+      "description": "Live log stream from Camel routes: notifications, translations, AUDIT trail",
+      "type": "logs",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 28 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "expr": "{service_name=\"$service\"} |~ \"notification-pipeline|translation-pipeline|profile-lookup|AUDIT|Camel|DLQ|Dead Letter\"",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Notification Audit Trail",
+      "description": "Structured audit log: message notifications enriched with recipient profile data",
+      "type": "logs",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 28 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "expr": "{service_name=\"$service\"} |~ \"AUDIT.*Message notification\"",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Camel/JMS Errors & DLQ",
+      "description": "Errors from Camel routes, dead letter queue deliveries, and JMS connection issues",
+      "type": "logs",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "expr": "{service_name=\"$service\"} |~ \"(?i)DLQ|Dead Letter|ERROR.*jms|ERROR.*camel|ERROR.*activemq|Failed delivery|translation.*failed\"",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Camel Traces",
+      "description": "Recent traces from Camel routes and JMS messaging. Click a trace ID to drill down.",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Duration" },
+            "properties": [ { "id": "unit", "value": "ms" } ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Duration", "desc": true }]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceqlSearch",
+          "query": "{resource.service.name=\"$service\"}",
+          "limit": 20,
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}
