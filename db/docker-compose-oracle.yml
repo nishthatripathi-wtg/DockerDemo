@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  oracle:
+    image: container-registry.oracle.com/database/enterprise:19.3.0.0
+    ports:
+      - "1522:1521"
+      - "5502:5500"
+    volumes:
+      - /docker/volumes/oracle/oracle19/data:/opt/oracle/oradata
+    networks:
+      - traefik_proxy
+    deploy:
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+networks:
+  traefik_proxy:
+    external: true

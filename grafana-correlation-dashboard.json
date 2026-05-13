@@ -1,0 +1,701 @@
+{
+  "description": "RED metrics, per-endpoint breakdown, and trace drilldown for demo-backend.",
+  "editable": true,
+  "graphTooltip": 1,
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "title": "RED Metrics \u2014 $service",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Server span duration percentiles for $service from spanmetrics histograms.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth"
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(traces_spanmetrics_latency_bucket{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p50",
+          "refId": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum(rate(traces_spanmetrics_latency_bucket{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p90",
+          "refId": "p90"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(traces_spanmetrics_latency_bucket{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p99",
+          "refId": "p99"
+        }
+      ],
+      "title": "Latency p50 / p90 / p99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Server spans per minute for $service.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "hidden"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\"}[$__rate_interval])) * 60",
+          "legendFormat": "req/min",
+          "refId": "A"
+        }
+      ],
+      "title": "Throughput (req/min)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Percentage of server spans with STATUS_CODE_ERROR for $service.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineInterpolation": "smooth"
+          },
+          "min": 0,
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "hidden"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\", status_code=\"STATUS_CODE_ERROR\"}[$__rate_interval])) / sum(rate(traces_spanmetrics_calls_total{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\"}[$__rate_interval])) * 100",
+          "legendFormat": "Error %",
+          "refId": "A"
+        }
+      ],
+      "title": "Error Rate %",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "title": "Per-Endpoint Breakdown \u2014 $service",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Server span names for $service ranked by request count.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg (ms)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "P99 (ms)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 10
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "topk(20, sum(increase(traces_spanmetrics_calls_total{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\"}[$__range])) by (span_name))",
+          "format": "table",
+          "instant": true,
+          "refId": "requests"
+        },
+        {
+          "expr": "sum(increase(traces_spanmetrics_latency_sum{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\"}[$__range])) by (span_name) / sum(increase(traces_spanmetrics_latency_count{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\"}[$__range])) by (span_name)",
+          "format": "table",
+          "instant": true,
+          "refId": "avg"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(traces_spanmetrics_latency_bucket{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\"}[$__rate_interval])) by (le, span_name))",
+          "format": "table",
+          "instant": true,
+          "refId": "p99"
+        }
+      ],
+      "title": "Top Endpoints by Throughput",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value #avg": "Avg (ms)",
+              "Value #p99": "P99 (ms)",
+              "Value #requests": "Requests",
+              "span_name": "Endpoint"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "desc": true,
+                "field": "Requests"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Server spans with STATUS_CODE_ERROR for $service.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          },
+          "noValue": "No errors in the selected window."
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Error Count"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 10
+      },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "topk(20, sum(increase(traces_spanmetrics_calls_total{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\", status_code=\"STATUS_CODE_ERROR\"}[$__range])) by (span_name))",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Errors by Endpoint",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value": "Error Count",
+              "span_name": "Endpoint"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "desc": true,
+                "field": "Error Count"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "p50 and p99 latency per server endpoint for $service.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 10
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "orientation": "horizontal",
+        "xField": "Endpoint"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(traces_spanmetrics_latency_bucket{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\"}[$__rate_interval])) by (le, span_name))",
+          "format": "table",
+          "instant": true,
+          "refId": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(traces_spanmetrics_latency_bucket{service_name=\"$service\", span_kind=\"SPAN_KIND_SERVER\"}[$__rate_interval])) by (le, span_name))",
+          "format": "table",
+          "instant": true,
+          "refId": "p99"
+        }
+      ],
+      "title": "Latency by Endpoint (p50 / p99)",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #p50": "p50 (ms)",
+              "Value #p99": "p99 (ms)",
+              "span_name": "Endpoint"
+            }
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "title": "Trace Navigation \u2014 $service",
+      "type": "row"
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Recent Traces (slowest first)",
+      "description": "Top 50 recent server traces for $service, sorted by duration descending. Click a Trace ID to view its waterfall below.",
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{ resource.service.name = \"$service\" && kind = server } | select(trace:duration, trace:rootName, trace:rootServiceName) | sort by trace:duration desc | limit 50",
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Trace ID"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "View Waterfall",
+                    "url": "/d/demo-backend-correlation?var-traceId=${__value.text}&${__url_time_range}&var-service=${service}",
+                    "targetBlank": false
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration (ms)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 100
+                    },
+                    {
+                      "color": "red",
+                      "value": 500
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "error": {
+                        "color": "red",
+                        "text": "ERROR"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "ok": {
+                        "color": "green",
+                        "text": "OK"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "unset": {
+                        "color": "text",
+                        "text": "Unset"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": []
+    },
+    {
+      "id": 9,
+      "type": "traces",
+      "title": "Trace Waterfall \u2014 $traceId",
+      "description": "Full trace waterfall for the selected trace. Click a Trace ID in the table above to populate this panel. Uses a 4-hour lookback so older traces can be found.",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 16
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "$traceId",
+          "refId": "A"
+        }
+      ],
+      "options": {},
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "timeFrom": "4h"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "otel",
+    "demo-backend",
+    "correlation"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "demo-backend",
+          "value": "demo-backend"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "includeAll": false,
+        "label": "Service",
+        "multi": false,
+        "name": "service",
+        "query": "label_values(traces_spanmetrics_calls_total, service_name)",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "label": "Trace ID",
+        "name": "traceId",
+        "type": "textbox",
+        "query": "",
+        "hide": 0
+      }
+    ]
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "10s",
+      "30s",
+      "1m",
+      "5m"
+    ],
+    "time_options": [
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "3h"
+    ]
+  },
+  "timezone": "browser",
+  "title": "demo-backend Correlation",
+  "uid": "demo-backend-correlation"
+}

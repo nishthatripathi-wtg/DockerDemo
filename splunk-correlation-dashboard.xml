@@ -1,0 +1,215 @@
+<form version="1.1" theme="dark">
+  <label>demo-backend Correlation – production</label>
+  <description>RED metrics · operations · recent traces · trace waterfall</description>
+  <!-- ==================== ROW 1: RED Metrics ==================== -->
+  <!-- ==================== ROW 2: Operations Breakdown ==================== -->
+  <!-- ==================== ROW 3: Recent Traces ==================== -->
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time_tok">
+      <label>Time Range</label>
+      <default>
+        <earliest>-15m</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="service_name" searchWhenChanged="true">
+      <label>Service</label>
+      <default>demo-backend</default>
+      <initialValue>demo-backend</initialValue>
+      <search>
+        <query>search index=main sourcetype=otel earliest=-4h | stats count by service.name | sort -count</query>
+        <earliest>-4h</earliest>
+        <latest>now</latest>
+      </search>
+      <fieldForLabel>service.name</fieldForLabel>
+      <fieldForValue>service.name</fieldForValue>
+    </input>
+    <input type="text" token="trace_id_input" searchWhenChanged="true">
+      <label>Trace ID (for waterfall)</label>
+      <default>*</default>
+      <initialValue>*</initialValue>
+      <change>
+        <condition match="$trace_id_input$ != &quot;*&quot; AND len($trace_id_input$) &gt; 10">
+          <set token="show_waterfall">true</set>
+        </condition>
+        <condition>
+          <unset token="show_waterfall"></unset>
+        </condition>
+      </change>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Latency p50 / p90 / p99</title>
+      <chart>
+        <search>
+          <query>search index=main sourcetype=otel earliest=$time_tok.earliest$ latest=$time_tok.latest$
+service.name=$service_name|s$ kind=SPAN_KIND_SERVER
+| eval duration_ms=(end_time - start_time)/1000000
+| timechart span=1m perc50(duration_ms) AS p50 perc90(duration_ms) AS p90 perc99(duration_ms) AS p99</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+        <option name="charting.axisTitleY.text">ms</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Throughput (req/min)</title>
+      <chart>
+        <search>
+          <query>search index=main sourcetype=otel earliest=$time_tok.earliest$ latest=$time_tok.latest$
+service.name=$service_name|s$ kind=SPAN_KIND_SERVER
+| timechart span=1m count AS requests</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleY.text">req/min</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Error Rate %</title>
+      <chart>
+        <search>
+          <query>search index=main sourcetype=otel earliest=$time_tok.earliest$ latest=$time_tok.latest$
+service.name=$service_name|s$ kind=SPAN_KIND_SERVER
+| timechart span=1m count(eval(match('status.code', "STATUS_CODE_ERROR"))) AS errors count AS total
+| eval error_pct=round(errors/total*100, 2)
+| fields _time error_pct</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.axisTitleY.text">% errors</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Top Endpoints by Throughput</title>
+      <table>
+        <search>
+          <query>search index=main sourcetype=otel earliest=$time_tok.earliest$ latest=$time_tok.latest$
+service.name=$service_name|s$ kind=SPAN_KIND_SERVER
+| stats count AS requests avg(eval((end_time-start_time)/1000000)) AS avg_ms
+perc99(eval((end_time-start_time)/1000000)) AS p99_ms by name
+| eval avg_ms=round(avg_ms,1) | eval p99_ms=round(p99_ms,1)
+| sort -requests | head 15
+| rename name AS Endpoint requests AS Requests avg_ms AS "Avg (ms)" p99_ms AS "P99 (ms)"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">15</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+    <panel>
+      <title>Errors by Endpoint</title>
+      <table>
+        <search>
+          <query>search index=main sourcetype=otel earliest=$time_tok.earliest$ latest=$time_tok.latest$
+service.name=$service_name|s$ "status.code"=STATUS_CODE_ERROR
+| stats count AS errors by name
+| sort -errors | head 15
+| rename name AS Endpoint</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">15</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+    <panel>
+      <title>Latency by Endpoint (p50 / p99)</title>
+      <chart>
+        <search>
+          <query>search index=main sourcetype=otel earliest=$time_tok.earliest$ latest=$time_tok.latest$
+service.name=$service_name|s$ kind=SPAN_KIND_SERVER
+| eval duration_ms=(end_time - start_time)/1000000
+| chart perc50(duration_ms) AS p50 perc99(duration_ms) AS p99 by name
+| sort -p99</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+        <option name="charting.axisTitleX.text">ms</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Recent Traces (slowest first) — click a row to load waterfall</title>
+      <table>
+        <search>
+          <progress>
+            <condition match="'job.resultCount' == 0">
+              <set token="traces_loading">true</set>
+            </condition>
+            <condition>
+              <unset token="traces_loading"></unset>
+            </condition>
+          </progress>
+          <query>index=main sourcetype=otel kind=SPAN_KIND_SERVER service.name=$service_name|s$ earliest=$time_tok.earliest$ latest=$time_tok.latest$| eval duration_ms = round((end_time - start_time)/1000000, 1)| stats first(_time) AS _time, first(name) AS name, max(duration_ms) AS duration_ms, first(status.code) AS status_code BY trace_id| sort 50 -duration_ms| eval status = case(status_code=="ERROR", "❌ Error", status_code=="OK", "✅ OK", true(), "⚪ Unset")| table _time trace_id name duration_ms status| rename name AS "Endpoint", duration_ms AS "Duration (ms)", trace_id AS "Trace ID"</query>
+          <earliest>$time_tok.earliest$</earliest>
+          <latest>$time_tok.latest$</latest>
+        </search>
+        <option name="count">20</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="wrap">false</option>
+        <drilldown>
+          <set token="trace_id_input">$row.Trace ID$</set>
+          <set token="form.trace_id_input">$row.Trace ID$</set>
+          <set token="show_waterfall">true</set>
+        </drilldown>
+      </table>
+      <html depends="$show_waterfall$">
+        <h3 style="margin:12px 0 4px 0;color:#f90;">▼ Waterfall – $trace_id_input$</h3>
+      </html>
+      <table depends="$show_waterfall$">
+        <search>
+          <query>search index=main sourcetype=otel trace_id="$trace_id_input$" kind=SPAN_KIND_*
+| dedup span_id
+| eval span_name=if(isnull(name) OR name="", "(unnamed)", name)
+| eval duration_ms=round((end_time - start_time)/1000000, 1)
+| sort 0 start_time
+| eventstats min(start_time) AS trace_start max(end_time) AS trace_end
+| eval trace_dur=(trace_end - trace_start)
+| eval offset_ms=round((start_time - trace_start)/1000000, 1)
+| eval is_root=if(parent_span_id="" OR isnull(parent_span_id), 1, 0)
+| eval depth=case(is_root=1, 0, kind="SPAN_KIND_CLIENT", 1, kind=SPAN_KIND_SERVER AND is_root=0, 2, kind="SPAN_KIND_INTERNAL", 3, 1==1, 1)
+| eval indent=case(depth=0, "■ ", depth=1, "├─ ", depth=2, "│  └─ ", 1==1, "│     └─ ")
+| eval span_label=indent . span_name
+| eval bar_total=40
+| eval offset_frac=if(trace_dur&gt;0, (start_time - trace_start)/trace_dur, 0)
+| eval dur_frac=if(trace_dur&gt;0, (end_time - start_time)/trace_dur, 0)
+| eval pad_count=max(round(offset_frac * bar_total), 0)
+| eval bar_count=max(round(dur_frac * bar_total), 1)
+| eval pad_count=if(isnull(pad_count) OR pad_count &lt; 0, 0, pad_count)
+| eval bar_count=if(isnull(bar_count) OR bar_count &lt; 1, 1, bar_count)
+| eval pad_str=if(pad_count&gt;0, substr("░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░", 1, pad_count), "")
+| eval bar_str=substr("▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓", 1, bar_count)
+| eval timing=pad_str . bar_str . " " . tostring(duration_ms) . "ms"
+| eval svc=service.name
+| table span_label svc kind offset_ms duration_ms timing
+| rename span_label AS "Span" svc AS "Service" kind AS "Kind"
+offset_ms AS "Offset (ms)" duration_ms AS "Duration (ms)" timing AS "Timing"</query>
+          <earliest>-4h@h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="count">50</option>
+        <option name="wrap">false</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

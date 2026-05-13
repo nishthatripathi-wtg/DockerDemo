@@ -1,7 +1,13 @@
-# OTel Collector — Dev configuration (LGTM backend)
+# OTel Collector — Dev configuration (Elasticsearch 9.x + APM Server + Splunk + LGTM)
 # Receives OTLP from backend Java Agent,
 # scrapes Traefik Prometheus metrics + PostgreSQL,
-# exports to: Prometheus (metrics), Tempo (traces), Loki (logs), Splunk HEC (all), debug.
+# exports to:
+#   Traces  → APM Server via OTLP (for Kibana APM waterfall)
+#   Traces  → Tempo via OTLP (for Grafana trace waterfall)
+#   Metrics → Elasticsearch native OTLP endpoint (/_otlp/v1/metrics)
+#   Metrics → Prometheus exporter :8889 (spanmetrics for Grafana RED)
+#   Logs    → Elasticsearch bulk API (elasticsearch exporter)
+#   All     → Splunk HEC (traces, metrics, logs)
 
 receivers:
   otlp:
@@ -29,6 +35,20 @@ receivers:
     tls:
       insecure: true
 
+connectors:
+  spanmetrics:
+    histogram:
+      explicit:
+        buckets: [2ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
+    dimensions:
+      - name: http.route
+      - name: http.request.method
+      - name: http.response.status_code
+    dimensions_cache_size: 1000
+    aggregation_temporality: "AGGREGATION_TEMPORALITY_CUMULATIVE"
+    metrics_flush_interval: 15s
+    namespace: traces_spanmetrics
+
 processors:
   resourcedetection:
     detectors: [system, env]
@@ -37,8 +57,6 @@ processors:
     timeout: 5s
     override: false
 
-  # Copy url.path → http.route on Traefik spans so Tempo spanmetrics
-  # can break down latency per route for the Traefik layer.
   transform:
     error_mode: ignore
     trace_statements:
@@ -55,28 +73,7 @@ exporters:
   debug:
     verbosity: basic
 
-  splunk_hec:
-    token: "otel-hec-token"
-    endpoint: "http://splunk_splunk:8088"
-    source: "otel"
-    sourcetype: "otel"
-    sending_queue:
-      enabled: true
-      num_consumers: 5
-      queue_size: 5000
-    timeout: 10s
-    index: "main"
-    log_data_enabled: true
-    tls:
-      insecure_skip_verify: true
-
-  # Prometheus exporter — Prometheus scrapes this endpoint
-  prometheus:
-    endpoint: "0.0.0.0:8889"
-    resource_to_telemetry_conversion:
-      enabled: true
-
-  # Tempo — receives traces via OTLP gRPC
+  # Tempo — traces via OTLP gRPC (for Grafana trace waterfall + TraceQL)
   otlp/tempo:
     endpoint: "monitoring_tempo:4317"
     tls:
@@ -86,11 +83,59 @@ exporters:
       num_consumers: 3
       queue_size: 2000
 
-  # Loki — receives logs via OTLP HTTP
-  otlphttp/loki:
-    endpoint: "http://monitoring_loki:3100/otlp"
+  # Prometheus exporter — exposes spanmetrics on :8889 for Prometheus to scrape
+  prometheus/spanmetrics:
+    endpoint: "0.0.0.0:8889"
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # APM Server — traces via OTLP gRPC (writes to traces-apm-* for Kibana waterfall)
+  otlp/apm:
+    endpoint: "elk_apm-server:8200"
     tls:
       insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 3
+      queue_size: 2000
+
+  # Elasticsearch native OTLP — metrics only (/_otlp/v1/metrics)
+  otlphttp/es:
+    endpoint: "http://elk_elasticsearch:9200/_otlp"
+    headers:
+      Authorization: "Basic ZWxhc3RpYzpjaGFuZ2VtZQ=="
+    sending_queue:
+      enabled: true
+      num_consumers: 3
+      queue_size: 2000
+
+  # Splunk HEC — all signals (traces, metrics, logs)
+  splunk_hec:
+    token: "otel-hec-token"
+    endpoint: "http://splunk_splunk:8088"
+    source: "otel"
+    sourcetype: "otel"
+    index: "main"
+    tls:
+      insecure_skip_verify: true
+    sending_queue:
+      enabled: true
+      num_consumers: 3
+      queue_size: 2000
+
+  # Elasticsearch bulk API — logs (writes to logs-generic.otel-*)
+  elasticsearch:
+    endpoints: ["http://elk_elasticsearch:9200"]
+    user: elastic
+    password: changeme
+    sending_queue:
+      enabled: true
+      num_consumers: 3
+      queue_size: 2000
+
+  # Loki — logs via OTLP HTTP (Loki 3.x native OTLP ingestion)
+  otlphttp/loki:
+    endpoint: "http://monitoring_loki:3100/otlp"
     sending_queue:
       enabled: true
       num_consumers: 3
@@ -101,15 +146,18 @@ service:
     traces:
       receivers: [otlp]
       processors: [resourcedetection, transform, batch]
-      exporters: [debug, splunk_hec, otlp/tempo]
+      exporters: [debug, otlp/apm, otlp/tempo, splunk_hec, spanmetrics]
     metrics:
       receivers: [otlp, prometheus, postgresql]
       processors: [resourcedetection, batch]
-      exporters: [debug, splunk_hec, prometheus]
+      exporters: [debug, otlphttp/es, splunk_hec]
+    metrics/spanmetrics:
+      receivers: [spanmetrics]
+      exporters: [prometheus/spanmetrics]
     logs:
       receivers: [otlp]
       processors: [resourcedetection, batch]
-      exporters: [debug, splunk_hec, otlphttp/loki]
+      exporters: [debug, elasticsearch, splunk_hec, otlphttp/loki]
 
   telemetry:
     logs:

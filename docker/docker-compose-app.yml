@@ -48,6 +48,7 @@ services:
       LOGGING_LEVEL_COM_EXAMPLE: TRACE
       LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: TRACE
       LOGGING_LEVEL_ORG_HIBERNATE: TRACE
+      TRANSLATOR_SERVICE_URL: http://translator-svc:8081
       ACTIVEMQ_BROKER_URL: tcp://activemq-broker:61616
     deploy:
       replicas: 3

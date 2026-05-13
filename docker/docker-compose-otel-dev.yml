@@ -20,7 +20,9 @@ services:
       - source: otel_dev_config
         target: /etc/otelcol-contrib/config.yaml
     networks:
-      - traefik_proxy
+      traefik_proxy:
+        aliases:
+          - otel-agent
     deploy:
       mode: replicated
       replicas: 1

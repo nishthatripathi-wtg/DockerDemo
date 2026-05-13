@@ -1,0 +1,19 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: translator-service
+
+translator:
+  libretranslate:
+    url: ${LIBRETRANSLATE_URL:https://libretranslate.com/translate}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

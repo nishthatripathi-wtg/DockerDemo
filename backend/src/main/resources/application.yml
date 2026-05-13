@@ -22,9 +22,25 @@ translation:
     api-key: ""
     timeout-ms: 5000
 
+translator:
+  service:
+    url: ${TRANSLATOR_SERVICE_URL:http://localhost:8081}
+
 activemq:
   broker-url: ${ACTIVEMQ_BROKER_URL:tcp://localhost:61616}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+  metrics:
+    distribution:
+      percentiles-histogram:
+        camel.exchange.processing.time: true
 
 camel:
   springboot:
     name: demo-backend-camel
+  opentelemetry:
+    enabled: true

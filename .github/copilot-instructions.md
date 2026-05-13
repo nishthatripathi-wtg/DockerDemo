@@ -18,6 +18,8 @@ OTel Collector (otel stack) ← OTLP push from Backend + Traefik
                              ← Prometheus scrape from Traefik :8082
                              ← PostgreSQL pg_stat_* queries
                              → Splunk HEC (http://splunk_splunk:8088)
+                             → LGTM (Prometheus + Tempo + Loki)
+                             → Elasticsearch (http://elk_elasticsearch:9200)
 ```
 
 The frontend uses **relative URLs** (`/api/greeting`) — Traefik handles routing to the backend by `PathPrefix(/api)`. There are no hardcoded backend URLs in frontend code.
@@ -88,9 +90,12 @@ docker stack rm otel && sleep 5 && docker stack deploy -c docker/docker-compose-
 docker stack deploy -c docker/docker-compose-traefik.yml traefik     # 1st — creates traefik_proxy network
 docker stack deploy -c docker/docker-compose-splunk.yml splunk       # Splunk for log/metric storage
 docker stack deploy -c docker/docker-compose-grafana.yml monitoring  # Prometheus + Tempo + Loki + Grafana (LGTM)
-docker stack deploy -c docker/docker-compose-otel-dev.yml otel       # OTel Collector (exports to Splunk + LGTM)
+docker stack deploy -c docker/docker-compose-elk.yml elk             # Elasticsearch + Kibana (ELK)
+docker stack deploy -c docker/docker-compose-otel-dev.yml otel       # OTel Collector (exports to Splunk + LGTM + ELK)
 docker stack deploy -c docker/docker-compose-app.yml myapp --with-registry-auth  # App stack
 ```
+
+> **Note:** `infra-up.sh` deploys only one observability backend at a time (Splunk, LGTM, or ELK) via an interactive prompt. The commands above are for manual deployment.
 
 ## Key Conventions
 
@@ -149,6 +154,8 @@ Service DNS in Swarm follows the pattern `<stack>_<service>`. Always use this wh
 | Traefik | `traefik_traefik` |
 | OTel Collector | `otel_otel-agent` |
 | Splunk HEC | `splunk_splunk:8088` |
+| Elasticsearch | `elk_elasticsearch:9200` |
+| Kibana | `elk_kibana:5601` |
 | PostgreSQL | `myapp_db:5432` |
 | Backend | `myapp_backend` |
 
@@ -162,7 +169,7 @@ Single-tier collector receiving from three sources:
 2. **Prometheus scrape** — Traefik `:8082/metrics` every 30s
 3. **PostgreSQL receiver** — `myapp_db:5432` as `monitor` user every 30s
 
-All signals export to **Splunk HEC** (`http://splunk_splunk:8088`, token: `otel-hec-token`, index: `main`).
+All signals export to **Splunk HEC** (`http://splunk_splunk:8088`, token: `otel-hec-token`, index: `main`), **LGTM stack** (Prometheus, Tempo, Loki), and **Elasticsearch** (`http://elk_elasticsearch:9200`, user: `elastic/changeme`). If a backend is not running, its exporter retries silently without blocking the others.
 
 ### Backend instrumentation (zero-code)
 The OTel Java Agent (v2.20.1) is baked into `backend/Dockerfile`. Configuration is purely via env vars in `docker/docker-compose-app.yml`:
@@ -201,6 +208,7 @@ index=main source=otel | head 1000 | fieldsummary | where match(field, "metric_n
 | Traefik dashboard | `http://traefik.myapp.com/dashboard/` | — |
 | Splunk | `http://splunk.myapp.com` | admin / changeme123 |
 | Grafana | `http://grafana.myapp.com` | admin / admin |
+| Kibana | `http://kibana.myapp.com` | elastic / changeme |
 | InfluxDB | ~~removed~~ — replaced by LGTM stack | — |
 | Jenkins | `http://jenkins.myapp.com` | admin / admin |
 | Gitea | `http://git.myapp.com` | admin / adminadmin |
@@ -218,6 +226,7 @@ index=main source=otel | head 1000 | fieldsummary | where match(field, "metric_n
 | `docker/docker-compose-otel-dev.yml` | Dev OTel Collector (single-tier, deploys `backend-only-config.yaml`) |
 | `docker/docker-compose-otel.yml` | Production OTel (agent+gateway two-tier) |
 | `docker/docker-compose-splunk.yml` | Splunk Enterprise 9.4 |
+| `docker/docker-compose-elk.yml` | Elasticsearch 8.17 + Kibana (ELK) |
 | `docker-compose.jenkins.yml` | Jenkins + Gitea + Registry infrastructure |
 | `docker/docker-compose-registry.yml` | Standalone Docker registry |
 | `docker/docker-compose-git.yml` | Standalone Gitea |

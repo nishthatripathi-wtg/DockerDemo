@@ -62,6 +62,12 @@ export default function () {
   http.get(`${BASE}/api/greeting/languages`,                                         { headers: HEADERS });
   http.get(`${BASE}/db`,                                                             { headers: HEADERS });
 
+  const langs = ['es', 'fr', 'de', 'hi', 'pt', 'ja', 'ar'];
+  const lang  = langs[Math.floor(Math.random() * langs.length)];
+  http.post(`${BASE}/api/greeting/translate`,
+    JSON.stringify({ name: user, target: lang }),
+    { headers: Object.assign({ 'Content-Type': 'application/json' }, HEADERS) });
+
   sleep(0.1);
 }
 

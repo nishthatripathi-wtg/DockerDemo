@@ -31,10 +31,13 @@ datasources:
     jsonData:
       tracesToLogsV2:
         datasourceUid: loki
-        filterByTraceID: true
+        filterByTraceID: false
         filterBySpanID: false
         customQuery: true
-        query: '{service_name="${__span.tags.service.name}"} | trace_id = `${__trace.traceId}`'
+        query: '{service_name="$${__span.tags["service.name"]}"} | trace_id = `$${__trace.traceId}`'
+        tags:
+          - key: service.name
+            value: service_name
       tracesToMetrics:
         datasourceUid: prometheus
         spanStartTimeShift: "-1h"
@@ -44,9 +47,9 @@ datasources:
             value: service_name
         queries:
           - name: Request rate
-            query: 'sum(rate(http_server_request_duration_seconds_count{service_name="${__tags.service_name}"}[5m]))'
+            query: 'sum(rate(http_server_request_duration_seconds_count{service_name="$${__tags.service_name}"}[5m]))'
           - name: Error rate
-            query: 'sum(rate(http_server_request_duration_seconds_count{service_name="${__tags.service_name}",http_response_status_code=~"5.."}[5m]))'
+            query: 'sum(rate(http_server_request_duration_seconds_count{service_name="$${__tags.service_name}",http_response_status_code=~"5.."}[5m]))'
       nodeGraph:
         enabled: true
       serviceMap:
@@ -63,7 +66,8 @@ datasources:
     jsonData:
       derivedFields:
         - datasourceUid: tempo
-          matcherRegex: "trace_id=(\\w+)"
-          name: TraceID
+          matcherRegex: "(\\w+)"
+          matcherType: label
+          name: trace_id
           url: "$${__value.raw}"
           urlDisplayLabel: View Trace

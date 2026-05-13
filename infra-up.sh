@@ -1,7 +1,11 @@
 #!/bin/bash
 # infra-up.sh — Bring up the full infrastructure stack in order.
 # Saves current VM IP to /etc/hosts, re-joins swarm if the advertise address
-# has changed, then deploys: traefik → splunk → monitoring → otel → gitea → registry → jenkins.
+# has changed, then deploys: traefik → [observability backend] → otel → gitea → registry → jenkins.
+#
+# The script prompts you to choose one or more observability backends:
+#   1) Splunk   2) Grafana (LGTM)   3) ELK (Elasticsearch + Kibana)
+#   Enter comma-separated values (e.g. 2,3) to deploy multiple.
 
 set -e
 
@@ -17,6 +21,7 @@ DOMAINS=(
   "git.myapp.com"
   "jenkins.myapp.com"
   "grafana.myapp.com"
+  "kibana.myapp.com"
   "influxdb.myapp.com"
 )
 
@@ -87,8 +92,43 @@ deploy() {
 
 echo "[5/9] Deploying infrastructure stacks..."
 deploy traefik  "$DOCKER_DIR/docker-compose-traefik.yml"
-deploy splunk   "$DOCKER_DIR/docker-compose-splunk.yml"
-deploy monitoring "$DOCKER_DIR/docker-compose-grafana.yml"
+
+# ── Choose observability backend(s) ───────────────────────────────────────────
+DEPLOY_SPLUNK=false
+DEPLOY_GRAFANA=false
+DEPLOY_ELK=false
+
+echo ""
+echo "      Which observability backend(s) do you want to deploy?"
+echo "        1) Splunk"
+echo "        2) Grafana (LGTM: Prometheus + Tempo + Loki + Grafana)"
+echo "        3) ELK (Elasticsearch + Kibana)"
+echo ""
+echo "      Enter one or more choices separated by commas (e.g. 1,3 or 2):"
+read -r -p "      > " OBS_INPUT
+
+# Parse comma-separated choices
+IFS=',' read -ra OBS_CHOICES <<< "$OBS_INPUT"
+for choice in "${OBS_CHOICES[@]}"; do
+  choice=$(echo "$choice" | tr -d ' ')
+  case "$choice" in
+    1) DEPLOY_SPLUNK=true ;;
+    2) DEPLOY_GRAFANA=true ;;
+    3) DEPLOY_ELK=true ;;
+    *) echo "      ⚠  Ignoring invalid choice '$choice'" ;;
+  esac
+done
+
+# Default to Splunk if nothing valid was selected
+if [ "$DEPLOY_SPLUNK" = false ] && [ "$DEPLOY_GRAFANA" = false ] && [ "$DEPLOY_ELK" = false ]; then
+  echo "      ⚠  No valid choice — defaulting to Splunk"
+  DEPLOY_SPLUNK=true
+fi
+
+[ "$DEPLOY_SPLUNK" = true ]  && deploy splunk "$DOCKER_DIR/docker-compose-splunk.yml"
+[ "$DEPLOY_GRAFANA" = true ] && deploy monitoring "$DOCKER_DIR/docker-compose-grafana.yml"
+[ "$DEPLOY_ELK" = true ]     && deploy elk "$DOCKER_DIR/docker-compose-elk.yml"
+
 deploy otel     "$DOCKER_DIR/docker-compose-otel-dev.yml"
 deploy git      "$DOCKER_DIR/docker-compose-git.yml"
 deploy registry "$DOCKER_DIR/docker-compose-registry.yml"
@@ -129,14 +169,37 @@ if [ "$REG_CODE" != "200" ]; then
 fi
 echo "      Registry is reachable (HTTP 200)."
 
-# ── 8. Validate Splunk HEC ────────────────────────────────────────────────────
-echo "[8/9] Validating Splunk HEC endpoint..."
-SPLUNK_CODE=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
-  -k http://splunk_splunk:8088/services/collector/health || true)
-if [ "$SPLUNK_CODE" = "200" ]; then
-  echo "      Splunk HEC is healthy (HTTP 200)"
-else
-  echo "      ⚠  Splunk HEC returned '$SPLUNK_CODE' — may still be starting (non-fatal)"
+# ── 8. Validate observability backend(s) ───────────────────────────────────────
+echo "[8/9] Validating observability backends..."
+
+if [ "$DEPLOY_SPLUNK" = true ]; then
+  SPLUNK_CODE=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
+    -k http://splunk_splunk:8088/services/collector/health || true)
+  if [ "$SPLUNK_CODE" = "200" ]; then
+    echo "      Splunk HEC is healthy (HTTP 200)"
+  else
+    echo "      ⚠  Splunk HEC returned '$SPLUNK_CODE' — may still be starting (non-fatal)"
+  fi
+fi
+
+if [ "$DEPLOY_GRAFANA" = true ]; then
+  GRAFANA_CODE=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
+    http://monitoring_grafana:3000/api/health || true)
+  if [ "$GRAFANA_CODE" = "200" ]; then
+    echo "      Grafana is healthy (HTTP 200)"
+  else
+    echo "      ⚠  Grafana returned '$GRAFANA_CODE' — may still be starting (non-fatal)"
+  fi
+fi
+
+if [ "$DEPLOY_ELK" = true ]; then
+  ES_CODE=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
+    -u elastic:changeme http://elk_elasticsearch:9200/_cluster/health || true)
+  if [ "$ES_CODE" = "200" ]; then
+    echo "      Elasticsearch is healthy (HTTP 200)"
+  else
+    echo "      ⚠  Elasticsearch returned '$ES_CODE' — may still be starting (non-fatal)"
+  fi
 fi
 
 # ── 9. Push commit to trigger Jenkins pipeline ───────────────────────────────
@@ -158,9 +221,9 @@ git push origin main
 echo ""
 echo "✅  Infrastructure is up. Jenkins pipeline triggered."
 echo "    Traefik dashboard : http://traefik.myapp.com/dashboard/"
-echo "    Splunk            : http://splunk.myapp.com"
+[ "$DEPLOY_SPLUNK" = true ]  && echo "    Splunk            : http://splunk.myapp.com"
+[ "$DEPLOY_GRAFANA" = true ] && echo "    Grafana           : http://grafana.myapp.com"
+[ "$DEPLOY_ELK" = true ]     && echo "    Kibana            : http://kibana.myapp.com"
 echo "    Gitea             : http://git.myapp.com"
 echo "    Jenkins           : http://jenkins.myapp.com"
 echo "    Registry          : http://registry.myapp.com"
-echo "    Grafana           : http://grafana.myapp.com"
-echo "    InfluxDB          : http://influxdb.myapp.com"
